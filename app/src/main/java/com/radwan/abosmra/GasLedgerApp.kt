@@ -30,8 +30,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
-import com.radwan.abosmra.ui.screens.AddDebtScreen
-import com.radwan.abosmra.ui.screens.AddPaymentScreen
+import com.radwan.abosmra.ui.screens.AddDebtScreenV3
+import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
 import com.radwan.abosmra.ui.screens.AreasScreen
 import com.radwan.abosmra.ui.screens.CustomerProfileScreenV3
 import com.radwan.abosmra.ui.screens.CustomerTransactionsScreen
@@ -185,14 +185,14 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddDebtScreen(vm, id, navController::popBackStack)
+                        AddDebtScreenV3(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.ADD_PAYMENT,
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddPaymentScreen(vm, id, navController::popBackStack)
+                        AddPaymentScreenV3(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.TRANSACTIONS,
