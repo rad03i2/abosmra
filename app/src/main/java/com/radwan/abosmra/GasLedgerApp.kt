@@ -32,19 +32,19 @@ import androidx.navigation.navArgument
 import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
 import com.radwan.abosmra.ui.screens.AddDebtScreenV3
 import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
-import com.radwan.abosmra.ui.screens.AreasScreen
+import com.radwan.abosmra.ui.screens.AreasScreenV4
 import com.radwan.abosmra.ui.screens.CustomerProfileScreenV3
-import com.radwan.abosmra.ui.screens.CustomerTransactionsScreen
+import com.radwan.abosmra.ui.screens.CustomerTransactionsScreenV4
 import com.radwan.abosmra.ui.screens.CustomersScreenV3
-import com.radwan.abosmra.ui.screens.DailyCollectionsScreen
-import com.radwan.abosmra.ui.screens.DailyDebtsScreen
-import com.radwan.abosmra.ui.screens.FollowUpScreen
+import com.radwan.abosmra.ui.screens.DailyCollectionsScreenV4
+import com.radwan.abosmra.ui.screens.DailyDebtsScreenV4
+import com.radwan.abosmra.ui.screens.FollowUpScreenV4
 import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV3
 import com.radwan.abosmra.ui.screens.SettingsScreenV3
-import com.radwan.abosmra.ui.screens.SmartSearchScreen
-import com.radwan.abosmra.ui.screens.StatementScreen
-import com.radwan.abosmra.ui.screens.TopDebtorsScreen
+import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
+import com.radwan.abosmra.ui.screens.StatementScreenV4
+import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
 import com.radwan.abosmra.ui.theme.GasLedgerTheme
 
 object Routes {
@@ -199,29 +199,29 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        CustomerTransactionsScreen(vm, id, navController::popBackStack)
+                        CustomerTransactionsScreenV4(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.STATEMENT,
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        StatementScreen(vm, id, navController::popBackStack)
+                        StatementScreenV4(vm, id, navController::popBackStack)
                     }
                     composable(Routes.COLLECTIONS) {
-                        DailyCollectionsScreen(vm, onCustomer = { navController.navigate(Routes.customer(it)) })
+                        DailyCollectionsScreenV4(vm, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.DAILY_DEBTS) {
-                        DailyDebtsScreen(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
+                        DailyDebtsScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.TOP_DEBTORS) {
-                        TopDebtorsScreen(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
+                        TopDebtorsScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.AREAS) {
-                        AreasScreen(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
+                        AreasScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SEARCH) {
-                        SmartSearchScreen(
+                        SmartSearchScreenV4(
                             vm,
                             navController::popBackStack,
                             onCustomer = { navController.navigate(Routes.customer(it)) },
@@ -233,7 +233,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         ReportsScreenV3(vm)
                     }
                     composable(Routes.FOLLOWUP) {
-                        FollowUpScreen(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
+                        FollowUpScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SETTINGS) {
                         SettingsScreenV3(vm)
