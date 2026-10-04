@@ -373,7 +373,7 @@ fun SettingsScreenV3(vm: GasLedgerViewModel) {
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             Text("دفتر الغاز", style = MaterialTheme.typography.titleLarge)
                             Text(
-                                "الإصدار 1.3.0 • مرحلة UI/UX",
+                                "الإصدار 1.4.0 • UI/UX Pro",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
