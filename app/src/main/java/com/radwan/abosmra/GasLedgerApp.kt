@@ -10,6 +10,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,19 +29,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.radwan.abosmra.ui.screens.AddCustomerScreen
-import com.radwan.abosmra.ui.screens.AddDebtScreen
-import com.radwan.abosmra.ui.screens.AddPaymentScreen
+import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
+import com.radwan.abosmra.ui.screens.AddDebtScreenV3
+import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
 import com.radwan.abosmra.ui.screens.AreasScreen
-import com.radwan.abosmra.ui.screens.CustomerProfileScreen
+import com.radwan.abosmra.ui.screens.CustomerProfileScreenV3
 import com.radwan.abosmra.ui.screens.CustomerTransactionsScreen
-import com.radwan.abosmra.ui.screens.CustomersScreen
+import com.radwan.abosmra.ui.screens.CustomersScreenV3
 import com.radwan.abosmra.ui.screens.DailyCollectionsScreen
 import com.radwan.abosmra.ui.screens.DailyDebtsScreen
 import com.radwan.abosmra.ui.screens.FollowUpScreen
-import com.radwan.abosmra.ui.screens.HomeScreen
-import com.radwan.abosmra.ui.screens.ReportsScreen
-import com.radwan.abosmra.ui.screens.SettingsScreen
+import com.radwan.abosmra.ui.screens.HomeScreenV3
+import com.radwan.abosmra.ui.screens.ReportsScreenV3
+import com.radwan.abosmra.ui.screens.SettingsScreenV3
 import com.radwan.abosmra.ui.screens.SmartSearchScreen
 import com.radwan.abosmra.ui.screens.StatementScreen
 import com.radwan.abosmra.ui.screens.TopDebtorsScreen
@@ -114,7 +115,15 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                                         }
                                     },
                                     icon = { Icon(item.icon, contentDescription = item.label) },
-                                    label = { Text(item.label) }
+                                    label = { Text(item.label, style = MaterialTheme.typography.labelMedium) },
+                                    alwaysShowLabel = false,
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                             }
                         }
@@ -127,7 +136,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                     modifier = Modifier.padding(innerPadding)
                 ) {
                     composable(Routes.HOME) {
-                        HomeScreen(
+                        HomeScreenV3(
                             vm = vm,
                             onCustomers = { navController.navigate(Routes.CUSTOMERS) },
                             onAddCustomer = { navController.navigate(Routes.ADD_CUSTOMER) },
@@ -141,14 +150,14 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         )
                     }
                     composable(Routes.CUSTOMERS) {
-                        CustomersScreen(
+                        CustomersScreenV3(
                             vm = vm,
                             onAdd = { navController.navigate(Routes.ADD_CUSTOMER) },
                             onCustomer = { navController.navigate(Routes.customer(it)) }
                         )
                     }
                     composable(Routes.ADD_CUSTOMER) {
-                        AddCustomerScreen(
+                        AddCustomerScreenV3(
                             vm = vm,
                             onBack = navController::popBackStack,
                             onSaved = { navController.navigate(Routes.customer(it)) {
@@ -161,7 +170,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        CustomerProfileScreen(
+                        CustomerProfileScreenV3(
                             vm = vm,
                             customerId = id,
                             onBack = navController::popBackStack,
@@ -176,14 +185,14 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddDebtScreen(vm, id, navController::popBackStack)
+                        AddDebtScreenV3(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.ADD_PAYMENT,
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddPaymentScreen(vm, id, navController::popBackStack)
+                        AddPaymentScreenV3(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.TRANSACTIONS,
@@ -221,13 +230,13 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         )
                     }
                     composable(Routes.REPORTS) {
-                        ReportsScreen(vm)
+                        ReportsScreenV3(vm)
                     }
                     composable(Routes.FOLLOWUP) {
                         FollowUpScreen(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SETTINGS) {
-                        SettingsScreen(vm)
+                        SettingsScreenV3(vm)
                     }
                 }
             }
