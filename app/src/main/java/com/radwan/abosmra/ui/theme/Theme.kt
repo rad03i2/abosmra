@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 val GasGreen = Color(0xFF0A6B57)
@@ -114,11 +115,11 @@ private val AppTypography = Typography(
 )
 
 private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8),
-    small = RoundedCornerShape(12),
-    medium = RoundedCornerShape(16),
-    large = RoundedCornerShape(22),
-    extraLarge = RoundedCornerShape(28)
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable
