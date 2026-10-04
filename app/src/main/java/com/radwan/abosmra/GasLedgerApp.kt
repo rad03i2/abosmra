@@ -33,8 +33,8 @@ import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
 import com.radwan.abosmra.ui.screens.AddDebtScreenV3
 import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
 import com.radwan.abosmra.ui.screens.AreasScreenV4
-import com.radwan.abosmra.ui.screens.CustomerProfileScreenV3
-import com.radwan.abosmra.ui.screens.CustomerTransactionsScreenV4
+import com.radwan.abosmra.ui.screens.CustomerProfileScreenV6
+import com.radwan.abosmra.ui.screens.CustomerTransactionsScreenV6
 import com.radwan.abosmra.ui.screens.CustomersScreenV3
 import com.radwan.abosmra.ui.screens.DailyCollectionsScreenV4
 import com.radwan.abosmra.ui.screens.DailyDebtsScreenV4
@@ -170,10 +170,16 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        CustomerProfileScreenV3(
+                        CustomerProfileScreenV6(
                             vm = vm,
                             customerId = id,
                             onBack = navController::popBackStack,
+                            onDeleted = {
+                                navController.navigate(Routes.CUSTOMERS) {
+                                    popUpTo(Routes.CUSTOMERS) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            },
                             onAddDebt = { navController.navigate(Routes.addDebt(id)) },
                             onPayment = { navController.navigate(Routes.addPayment(id)) },
                             onTransactions = { navController.navigate(Routes.transactions(id)) },
@@ -199,7 +205,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        CustomerTransactionsScreenV4(vm, id, navController::popBackStack)
+                        CustomerTransactionsScreenV6(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.STATEMENT,
