@@ -14,6 +14,7 @@ import androidx.room3.Query
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
 import androidx.room3.Transaction
+import androidx.room3.Update
 import androidx.sqlite.driver.AndroidSQLiteDriver
 
 @Entity(
@@ -94,6 +95,18 @@ interface GasLedgerDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntries(entries: List<LedgerEntryEntity>)
+
+    @Update
+    suspend fun updateCustomer(customer: CustomerEntity)
+
+    @Update
+    suspend fun updateEntry(entry: LedgerEntryEntity)
+
+    @Query("DELETE FROM ledger_entries WHERE id = :entryId")
+    suspend fun deleteEntryById(entryId: String)
+
+    @Query("DELETE FROM customers WHERE id = :customerId")
+    suspend fun deleteCustomerById(customerId: String)
 
     @Query("DELETE FROM ledger_entries")
     suspend fun clearEntries()

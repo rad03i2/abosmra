@@ -20,7 +20,6 @@ class AppRepository(context: Context) {
     }
 
     fun customers(): List<Customer> = customersCache.toList()
-
     fun entries(): List<LedgerEntry> = entriesCache.toList()
 
     fun addCustomer(
@@ -40,10 +39,62 @@ class AppRepository(context: Context) {
             openingDebt = openingDebt.coerceAtLeast(0L),
             notes = notes.trim()
         )
-
         dbCall { dao.insertCustomer(customer.toEntity()) }
         customersCache.add(0, customer)
         return customer
+    }
+
+    fun updateCustomer(
+        customerId: String,
+        name: String,
+        phone: String?,
+        area: String,
+        address: String,
+        openingDebt: Long,
+        notes: String
+    ): MutationResult {
+        val current = customersCache.firstOrNull { it.id == customerId }
+            ?: return MutationResult(false, "تعذر العثور على الزبون.")
+        if (name.isBlank()) return MutationResult(false, "اسم الزبون مطلوب.")
+        if (openingDebt < 0L) return MutationResult(false, "الدين السابق لا يمكن أن يكون سالبًا.")
+
+        val updated = current.copy(
+            name = name.trim(),
+            phone = phone?.trim()?.takeIf { it.isNotBlank() },
+            area = area.trim(),
+            address = address.trim(),
+            openingDebt = openingDebt,
+            notes = notes.trim()
+        )
+
+        val customerEntries = entriesCache.filter { it.customerId == customerId }
+        if (!ledgerIsValid(updated, customerEntries)) {
+            return MutationResult(
+                false,
+                "هذا التعديل يجعل أحد التحصيلات القديمة أكبر من الرصيد المتاح وقتها."
+            )
+        }
+
+        dbCall { dao.updateCustomer(updated.toEntity()) }
+        customersCache = customersCache.map { if (it.id == customerId) updated else it }.toMutableList()
+        return MutationResult(true, "تم تحديث بيانات الزبون.")
+    }
+
+    fun deleteCustomer(customerId: String): MutationResult {
+        val customer = customersCache.firstOrNull { it.id == customerId }
+            ?: return MutationResult(false, "تعذر العثور على الزبون.")
+        val customerEntries = entriesCache.filter { it.customerId == customerId }
+
+        if (customer.openingDebt != 0L) {
+            return MutationResult(false, "لا يمكن حذف الزبون قبل تصفير الدين السابق.")
+        }
+        if (customerEntries.isNotEmpty()) {
+            return MutationResult(false, "لا يمكن حذف الزبون لأن لديه حركات مالية محفوظة.")
+        }
+
+        dbCall { dao.deleteCustomerById(customerId) }
+        customersCache.removeAll { it.id == customerId }
+        return MutationResult(true, "تم حذف الزبون.")
     }
 
     fun addDebt(
@@ -65,7 +116,6 @@ class AppRepository(context: Context) {
             bottlePrice = bottlePrice,
             details = details
         )
-
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
         return entry
@@ -82,10 +132,67 @@ class AppRepository(context: Context) {
             type = EntryType.PAYMENT,
             amount = amount
         )
-
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
         return entry
+    }
+
+    fun updateEntry(
+        entryId: String,
+        amount: Long,
+        bottles: Int?,
+        bottlePrice: Long?,
+        details: String
+    ): MutationResult {
+        val current = entriesCache.firstOrNull { it.id == entryId }
+            ?: return MutationResult(false, "تعذر العثور على الحركة.")
+        if (amount <= 0L) return MutationResult(false, "المبلغ يجب أن يكون أكبر من صفر.")
+
+        val customer = customersCache.firstOrNull { it.id == current.customerId }
+            ?: return MutationResult(false, "تعذر العثور على الزبون المرتبط بالحركة.")
+
+        val updated = current.copy(
+            amount = amount,
+            bottles = if (current.type == EntryType.DEBT) bottles?.takeIf { it > 0 } else null,
+            bottlePrice = if (current.type == EntryType.DEBT) bottlePrice?.takeIf { it > 0L } else null,
+            details = if (current.type == EntryType.DEBT) details.trim() else current.details
+        )
+
+        val candidateEntries = entriesCache
+            .filter { it.customerId == current.customerId }
+            .map { if (it.id == entryId) updated else it }
+
+        if (!ledgerIsValid(customer, candidateEntries)) {
+            return MutationResult(
+                false,
+                "لا يمكن حفظ التعديل لأنه يجعل تحصيلًا لاحقًا أكبر من الرصيد المتاح."
+            )
+        }
+
+        dbCall { dao.updateEntry(updated.toEntity()) }
+        entriesCache = entriesCache.map { if (it.id == entryId) updated else it }.toMutableList()
+        return MutationResult(true, "تم تعديل الحركة.")
+    }
+
+    fun deleteEntry(entryId: String): MutationResult {
+        val current = entriesCache.firstOrNull { it.id == entryId }
+            ?: return MutationResult(false, "تعذر العثور على الحركة.")
+        val customer = customersCache.firstOrNull { it.id == current.customerId }
+            ?: return MutationResult(false, "تعذر العثور على الزبون المرتبط بالحركة.")
+
+        val candidateEntries = entriesCache
+            .filter { it.customerId == current.customerId && it.id != entryId }
+
+        if (!ledgerIsValid(customer, candidateEntries)) {
+            return MutationResult(
+                false,
+                "لا يمكن حذف هذه الحركة لأن حذفها يجعل سجل الحساب غير صالح محاسبيًا."
+            )
+        }
+
+        dbCall { dao.deleteEntryById(entryId) }
+        entriesCache.removeAll { it.id == entryId }
+        return MutationResult(true, "تم حذف الحركة.")
     }
 
     fun resetDemoData() {
@@ -96,24 +203,29 @@ class AppRepository(context: Context) {
                 entries = entries.map(LedgerEntry::toEntity)
             )
         }
-
         customersCache = customers.toMutableList()
         entriesCache = entries.toMutableList()
-
-        prefs.edit()
-            .putBoolean(ROOM_INITIALIZED_KEY, true)
-            .apply()
+        prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
     }
 
     fun exportJson(): String {
         val root = JSONObject()
         root.put("app", "دفتر الغاز")
-        root.put("version", 2)
+        root.put("version", 3)
         root.put("storage", "room-sqlite")
         root.put("exportedAt", System.currentTimeMillis())
         root.put("customers", customersToJson())
         root.put("entries", entriesToJson())
         return root.toString(2)
+    }
+
+    private fun ledgerIsValid(customer: Customer, customerEntries: List<LedgerEntry>): Boolean {
+        var running = customer.openingDebt
+        customerEntries.sortedWith(compareBy<LedgerEntry> { it.createdAt }.thenBy { it.id }).forEach { entry ->
+            running += if (entry.type == EntryType.DEBT) entry.amount else -entry.amount
+            if (running < 0L) return false
+        }
+        return true
     }
 
     private fun loadRoomOrMigrateLegacy() {
@@ -125,11 +237,8 @@ class AppRepository(context: Context) {
             if (dbCustomers.isNotEmpty() || dbEntries.isNotEmpty()) {
                 customersCache = dbCustomers.toMutableList()
                 entriesCache = dbEntries.toMutableList()
-
                 if (!alreadyInitialized) {
-                    prefs.edit()
-                        .putBoolean(ROOM_INITIALIZED_KEY, true)
-                        .commit()
+                    prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).commit()
                 }
                 return@dbCall
             }
@@ -155,15 +264,9 @@ class AppRepository(context: Context) {
                 customers = source.first.map(Customer::toEntity),
                 entries = source.second.map(LedgerEntry::toEntity)
             )
-
             customersCache = source.first.toMutableList()
             entriesCache = source.second.toMutableList()
-
-            // Keep the legacy JSON untouched as a recovery copy. The marker prevents
-            // importing it again after Room becomes the authoritative data source.
-            prefs.edit()
-                .putBoolean(ROOM_INITIALIZED_KEY, true)
-                .commit()
+            prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).commit()
         }
     }
 
@@ -202,7 +305,6 @@ class AppRepository(context: Context) {
 
     private fun parseCustomers(raw: String?): List<Customer> {
         if (raw.isNullOrBlank()) return emptyList()
-
         return runCatching {
             val array = JSONArray(raw)
             buildList {
@@ -227,7 +329,6 @@ class AppRepository(context: Context) {
 
     private fun parseEntries(raw: String?): List<LedgerEntry> {
         if (raw.isNullOrBlank()) return emptyList()
-
         return runCatching {
             val array = JSONArray(raw)
             buildList {
