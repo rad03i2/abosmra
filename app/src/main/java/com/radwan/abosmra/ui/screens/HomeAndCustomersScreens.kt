@@ -2,20 +2,26 @@ package com.radwan.abosmra.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Assessment
@@ -36,11 +42,12 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,15 +56,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.ui.components.CustomerCard
-import com.radwan.abosmra.ui.components.MetricCard
 import com.radwan.abosmra.ui.components.QuickActionCard
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SectionTitle
@@ -85,103 +92,57 @@ fun HomeScreen(
     onFollowUp: () -> Unit,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     val today = remember {
-        val dayName = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE", Locale("ar", "IQ")))
-        dayName + "، " + formatDate(System.currentTimeMillis())
+        val day = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE", Locale("ar", "IQ")))
+        day + "، " + formatDate(System.currentTimeMillis())
     }
-    val topDebtors = remember(customers, entries) { vm.topDebtors().take(4) }
-    val recent = entries.sortedByDescending { it.createdAt }.take(5)
+    val topDebtors = remember(customers, entries) { vm.topDebtors().take(3) }
+    val recent = remember(entries) { entries.sortedByDescending { it.createdAt }.take(4) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("أهلًا بك", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("دفتر الغاز", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("دفتر الغاز", style = MaterialTheme.typography.headlineMedium)
                 Text(today, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard(
-                    "إجمالي الديون",
-                    formatMoney(vm.totalDebt()),
-                    Icons.Rounded.Wallet,
-                    modifier = Modifier.weight(1f),
-                    supporting = vm.indebtedCustomersCount().toString() + " زبون عليهم دين"
-                )
-                MetricCard(
-                    "تحصيلات اليوم",
-                    formatMoney(vm.todayCollections()),
-                    Icons.Rounded.TrendingUp,
-                    modifier = Modifier.weight(1f),
-                    supporting = vm.todayEntries(EntryType.PAYMENT).size.toString() + " عملية"
-                )
+            DebtHero(
+                totalDebt = vm.totalDebt(),
+                debtors = vm.indebtedCustomersCount(),
+                collections = vm.todayCollections(),
+                onDebt = onSearch,
+                onPayment = onSearch
+            )
+        }
+
+        item {
+            HomeSearch(onClick = onSearch)
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickActionCard("زبون جديد", Icons.Rounded.PersonAdd, onAddCustomer, Modifier.weight(1f))
+                QuickActionCard("المناطق", Icons.Rounded.LocationOn, onAreas, Modifier.weight(1f))
             }
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard(
-                    "ديون اليوم",
-                    formatMoney(vm.todayDebts()),
-                    Icons.Rounded.ReceiptLong,
-                    modifier = Modifier.weight(1f),
-                    supporting = vm.todayEntries(EntryType.DEBT).size.toString() + " عملية"
-                )
-                MetricCard(
-                    "عدد الزبائن",
-                    customers.size.toString(),
-                    Icons.Rounded.People,
-                    modifier = Modifier.weight(1f)
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                MiniStat("ديون اليوم", formatMoney(vm.todayDebts()), onDailyDebts, Modifier.weight(1f))
+                MiniStat("تحصيلات اليوم", formatMoney(vm.todayCollections()), onCollections, Modifier.weight(1f))
+                MiniStat("الزبائن", customers.size.toString(), onCustomers, Modifier.weight(1f))
             }
         }
 
-        item { SectionTitle("الوصول السريع") }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickActionCard("إضافة دين", Icons.Rounded.Add, onSearch, Modifier.weight(1f))
-                QuickActionCard("تسجيل تحصيل", Icons.Rounded.Wallet, onSearch, Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickActionCard("إضافة زبون", Icons.Rounded.PersonAdd, onAddCustomer, Modifier.weight(1f))
-                QuickActionCard("كشف حساب", Icons.Rounded.ReceiptLong, onSearch, Modifier.weight(1f))
-            }
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onSearch),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.primary)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("بحث سريع عن زبون", fontWeight = FontWeight.Bold)
-                        Text("ابحث بالاسم أو رقم الهاتف أو المنطقة", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
-
-        item {
-            SectionTitle("أعلى الزبائن مديونية", "عرض الكل", onTopDebtors)
-        }
+        item { SectionTitle("أعلى المديونيات", "عرض الكل", onTopDebtors) }
         items(topDebtors, key = { it.id }) { customer ->
             CustomerCard(
                 customer = customer,
@@ -191,53 +152,170 @@ fun HomeScreen(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuickActionCard("المناطق", Icons.Rounded.LocationOn, onAreas, Modifier.weight(1f))
-                QuickActionCard("المتابعة", Icons.Rounded.Assessment, onFollowUp, Modifier.weight(1f))
-            }
-        }
-
-        item {
-            SectionTitle("آخر العمليات", "التحصيلات", onCollections)
-        }
-        items(recent, key = { it.id }) { entry ->
-            val customer = customers.firstOrNull { it.id == entry.customerId }
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { customer?.let { onCustomer(it.id) } },
-                shape = RoundedCornerShape(18.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onFollowUp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.secondaryContainer
             ) {
-                Column(Modifier.padding(horizontal = 14.dp)) {
-                    if (customer != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Assessment, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        Text("متابعة الحسابات", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            customer.name,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 12.dp)
+                            "اعرف من يحتاج متابعة اليوم",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
-                    TransactionRow(entry)
                 }
             }
         }
 
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onDailyDebts, modifier = Modifier.weight(1f)) {
-                    Text("ديون اليوم")
-                }
-                Button(onClick = onCustomers, modifier = Modifier.weight(1f)) {
-                    Text("كل الزبائن")
+        item { SectionTitle("آخر الحركات", "كل التحصيلات", onCollections) }
+        if (recent.isEmpty()) {
+            item {
+                Text("لا توجد حركات حتى الآن.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            items(recent, key = { it.id }) { entry ->
+                val customer = customers.firstOrNull { it.id == entry.customerId }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { customer?.let { onCustomer(it.id) } },
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                        Text(
+                            customer?.name ?: "زبون",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(top = 11.dp)
+                        )
+                        TransactionRow(entry)
+                    }
                 }
             }
         }
-        item { Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun DebtHero(
+    totalDebt: Long,
+    debtors: Int,
+    collections: Long,
+    onDebt: () -> Unit,
+    onPayment: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.primary
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("إجمالي الدين الحالي", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f))
+                Text(
+                    formatMoney(totalDebt),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    debtors.toString() + " زبون بحساب مفتوح • تحصيل اليوم " + formatMoney(collections),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.76f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Surface(
+                    modifier = Modifier.weight(1f).clickable(onClick = onDebt),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.13f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 11.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
+                        Text("إضافة دين", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(start = 5.dp))
+                    }
+                }
+                Surface(
+                    modifier = Modifier.weight(1f).clickable(onClick = onPayment),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 11.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Wallet, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Text("تحصيل", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 5.dp), fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSearch(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Text(
+                "ابحث عن زبون بالاسم أو الهاتف",
+                modifier = Modifier.padding(horizontal = 9.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniStat(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier.clickable(onClick = onClick),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
 private enum class CustomerSort(val label: String) {
-    HIGHEST("الأعلى مديونية"),
+    HIGHEST("الأعلى دينًا"),
     NAME("الاسم"),
-    LATEST("الأحدث تعاملًا"),
-    AREA("حسب المنطقة")
+    LATEST("آخر تعامل"),
+    AREA("المنطقة")
 }
 
 @Composable
@@ -246,17 +324,17 @@ fun CustomersScreen(
     onAdd: () -> Unit,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(CustomerSort.HIGHEST) }
 
     val visible = remember(customers, entries, query, sort) {
         val filtered = customers.filter {
             query.isBlank() ||
-                it.name.contains(query, ignoreCase = true) ||
+                it.name.contains(query, true) ||
                 it.phone.orEmpty().contains(query) ||
-                it.area.contains(query, ignoreCase = true)
+                it.area.contains(query, true)
         }
         when (sort) {
             CustomerSort.HIGHEST -> filtered.sortedByDescending { vm.balance(it) }
@@ -267,28 +345,21 @@ fun CustomersScreen(
     }
 
     Scaffold(
-        topBar = {
-            ScreenTopBar(
-                title = "الزبائن",
-                actions = {
-                    IconButton(onClick = onAdd) {
-                        Icon(Icons.Rounded.PersonAdd, contentDescription = "إضافة زبون")
-                    }
-                }
-            )
-        },
+        topBar = { ScreenTopBar("الزبائن") },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAdd,
-                icon = { Icon(Icons.Rounded.Add, null) },
-                text = { Text("إضافة زبون") }
+                icon = { Icon(Icons.Rounded.PersonAdd, null) },
+                text = { Text("زبون جديد") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             )
         }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 90.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             item {
                 OutlinedTextField(
@@ -296,21 +367,22 @@ fun CustomersScreen(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("بحث بالاسم أو الهاتف أو المنطقة") },
+                    label = { Text("بحث سريع") },
+                    placeholder = { Text("الاسم، الهاتف، المنطقة") },
                     leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                    shape = RoundedCornerShape(18.dp)
+                    shape = CircleShape
                 )
             }
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     CustomerSort.entries.forEach { option ->
                         FilterChip(
                             selected = sort == option,
                             onClick = { sort = option },
-                            label = { Text(option.label, maxLines = 1) }
+                            label = { Text(option.label) }
                         )
                     }
                 }
@@ -318,20 +390,18 @@ fun CustomersScreen(
             item {
                 Text(
                     visible.size.toString() + " زبون",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             items(visible, key = { it.id }) { customer ->
-                val last = vm.lastEntryFor(customer.id)
                 CustomerCard(
                     customer = customer,
                     balance = vm.balance(customer),
-                    lastActivity = last?.let { "آخر تعامل " + formatDate(it.createdAt) },
+                    lastActivity = vm.lastEntryFor(customer.id)?.let { "آخر تعامل " + formatDate(it.createdAt) },
                     onClick = { onCustomer(customer.id) }
                 )
             }
-            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 }
@@ -350,32 +420,22 @@ fun AddCustomerScreen(
     var notes by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = { ScreenTopBar("إضافة زبون جديد", onBack) }
-    ) { padding ->
+    Scaffold(topBar = { ScreenTopBar("زبون جديد", onBack) }) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
-            Text(
-                "بيانات الزبون",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text("أدخل المعلومات الأساسية فقط، ويمكن إكمال الباقي لاحقًا.", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             OutlinedTextField(
                 value = name,
-                onValueChange = {
-                    name = it
-                    showError = false
-                },
+                onValueChange = { name = it; showError = false },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("اسم الزبون *") },
                 singleLine = true,
                 isError = showError && name.isBlank(),
-                supportingText = {
-                    if (showError && name.isBlank()) Text("اسم الزبون مطلوب")
-                }
+                supportingText = { if (showError && name.isBlank()) Text("اسم الزبون مطلوب") },
+                shape = MaterialTheme.shapes.medium
             )
             OutlinedTextField(
                 value = phone,
@@ -383,47 +443,50 @@ fun AddCustomerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("رقم الهاتف") },
                 placeholder = { Text("07XXXXXXXXX") },
-                supportingText = { Text("يدعم أرقام العراق، وسيُستخدم +964 عند المشاركة") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                shape = MaterialTheme.shapes.medium
             )
             OutlinedTextField(
                 value = area,
                 onValueChange = { area = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("المنطقة / الحي") },
-                singleLine = true
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium
             )
             OutlinedTextField(
                 value = address,
                 onValueChange = { address = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("العنوان أو وصف المكان") },
-                minLines = 2
+                label = { Text("وصف المكان") },
+                minLines = 2,
+                shape = MaterialTheme.shapes.medium
             )
             OutlinedTextField(
                 value = openingDebt,
                 onValueChange = { openingDebt = it.filter(Char::isDigit).take(12) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("المبلغ السابق / الدين الافتتاحي") },
+                label = { Text("الدين السابق") },
                 suffix = { Text("د.ع") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = MaterialTheme.shapes.medium
             )
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("ملاحظات مختصرة") },
-                minLines = 2
+                label = { Text("ملاحظات") },
+                minLines = 2,
+                shape = MaterialTheme.shapes.medium
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Button(
                 onClick = {
-                    if (name.isBlank()) {
-                        showError = true
-                    } else {
+                    if (name.isBlank()) showError = true
+                    else {
                         val customer = vm.addCustomer(
                             name = name,
                             phone = phone.takeIf { it.isNotBlank() },
@@ -436,9 +499,9 @@ fun AddCustomerScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
-                shape = RoundedCornerShape(18.dp)
+                shape = MaterialTheme.shapes.medium
             ) {
-                Text("حفظ الزبون", fontWeight = FontWeight.Bold)
+                Text("حفظ الزبون")
             }
         }
     }
@@ -454,46 +517,39 @@ fun CustomerProfileScreen(
     onTransactions: () -> Unit,
     onStatement: () -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     val context = LocalContext.current
 
     if (customer == null) {
-        Scaffold(topBar = { ScreenTopBar("الزبون", onBack) }) { padding ->
-            Column(
-                Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("تعذر العثور على هذا الزبون")
+        Scaffold(topBar = { ScreenTopBar("الزبون", onBack) }) { p ->
+            Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
+                Text("تعذر العثور على الزبون")
             }
         }
         return
     }
 
     val balance = vm.balance(customer)
-    val customerEntries = entries.filter { it.customerId == customerId }.sortedByDescending { it.createdAt }
+    val customerEntries = remember(entries, customerId) {
+        entries.filter { it.customerId == customerId }.sortedByDescending { it.createdAt }
+    }
 
     Scaffold(
         topBar = {
             ScreenTopBar(
-                title = customer.name,
-                onBack = onBack,
+                customer.name,
+                onBack,
                 actions = {
                     if (!customer.phone.isNullOrBlank()) {
                         IconButton(onClick = {
                             context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + customer.phone)))
-                        }) {
-                            Icon(Icons.Rounded.Call, contentDescription = "اتصال")
-                        }
+                        }) { Icon(Icons.Rounded.Call, "اتصال") }
                         IconButton(onClick = {
-                            val phone = normalizeIraqPhone(customer.phone)
-                            val uri = Uri.parse("https://wa.me/" + phone.removePrefix("+"))
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                        }) {
-                            Icon(Icons.Rounded.Chat, contentDescription = "WhatsApp")
-                        }
+                            val phone = normalizeIraqPhone(customer.phone).removePrefix("+")
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/" + phone))) }
+                        }) { Icon(Icons.Rounded.Chat, "واتساب") }
                     }
                 }
             )
@@ -501,93 +557,73 @@ fun CustomerProfileScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(customer.area.ifBlank { "بدون منطقة" }, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(customer.phone ?: "بدون رقم هاتف", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (customer.address.isNotBlank()) {
-                        Text(customer.address, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-
-            item {
-                Card(
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (balance > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = if (balance > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("الدين الحالي", style = MaterialTheme.typography.titleMedium)
+                        Text("الدين الحالي", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             formatMoney(balance),
                             style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.ExtraBold,
                             color = if (balance > 0) DebtRed else PaidGreen
                         )
-                        StatusChip(
-                            text = if (balance == 0L) "الحساب مسدد بالكامل" else "حساب مفتوح",
-                            positive = balance == 0L
-                        )
+                        StatusChip(if (balance == 0L) "الحساب مسدد" else "حساب مفتوح", balance == 0L)
                     }
                 }
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onAddDebt, modifier = Modifier.weight(1f)) {
-                        Text("إضافة دين")
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Button(onClick = onAddDebt, modifier = Modifier.weight(1f).height(50.dp)) { Text("إضافة دين") }
                     Button(
                         onClick = onPayment,
                         enabled = balance > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("تسجيل تحصيل")
-                    }
+                        modifier = Modifier.weight(1f).height(50.dp)
+                    ) { Text("تحصيل") }
                 }
             }
+
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     QuickActionCard("كشف الحساب", Icons.Rounded.ReceiptLong, onStatement, Modifier.weight(1f))
                     QuickActionCard("كل الحركات", Icons.Rounded.Assessment, onTransactions, Modifier.weight(1f))
                 }
             }
 
             item {
-                SectionTitle("آخر الحركات", "عرض السجل", onTransactions)
-            }
-            if (customerEntries.isEmpty()) {
-                item {
-                    Text("لا توجد حركات مالية مسجلة بعد.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                items(customerEntries.take(6), key = { it.id }) { entry ->
-                    Card(shape = RoundedCornerShape(18.dp)) {
-                        TransactionRow(entry, modifier = Modifier.padding(horizontal = 14.dp))
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProfileInfo("المنطقة", customer.area.ifBlank { "غير محددة" })
+                        ProfileInfo("الهاتف", customer.phone ?: "غير مضاف")
+                        if (customer.address.isNotBlank()) ProfileInfo("المكان", customer.address)
                     }
                 }
             }
 
-            item {
-                SectionTitle("معلومات الزبون")
-            }
-            item {
-                Card(shape = RoundedCornerShape(20.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ProfileInfo("المنطقة", customer.area.ifBlank { "غير محددة" })
-                        ProfileInfo("العنوان", customer.address.ifBlank { "غير مضاف" })
-                        ProfileInfo("رقم الهاتف", customer.phone ?: "غير مضاف")
-                        ProfileInfo("الدين الافتتاحي", formatMoney(customer.openingDebt))
-                        if (customer.notes.isNotBlank()) ProfileInfo("ملاحظات", customer.notes)
+            item { SectionTitle("آخر الحركات", "السجل الكامل", onTransactions) }
+            if (customerEntries.isEmpty()) {
+                item { Text("لا توجد حركات مالية.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            } else {
+                items(customerEntries.take(5), key = { it.id }) { entry ->
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        TransactionRow(entry, modifier = Modifier.padding(horizontal = 14.dp))
                     }
                 }
             }
@@ -598,12 +634,13 @@ fun CustomerProfileScreen(
 @Composable
 private fun ProfileInfo(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             value,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f).padding(start = 16.dp)
+            modifier = Modifier.weight(1f).padding(start = 14.dp)
         )
     }
 }

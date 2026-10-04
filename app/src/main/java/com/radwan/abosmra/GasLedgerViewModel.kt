@@ -6,7 +6,6 @@ import com.radwan.abosmra.data.AppRepository
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
-import com.radwan.abosmra.data.customerBalance
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,12 +22,24 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val _entries = MutableStateFlow(repository.entries())
     val entries: StateFlow<List<LedgerEntry>> = _entries.asStateFlow()
 
+    // Expensive ledger calculations are indexed once after every write instead of
+    // re-filtering the entire history on every card recomposition.
+    private var balanceByCustomer: Map<String, Long> = emptyMap()
+    private var entriesByCustomer: Map<String, List<LedgerEntry>> = emptyMap()
+    private var lastEntryByCustomer: Map<String, LedgerEntry> = emptyMap()
+    private var lastPaymentByCustomer: Map<String, LedgerEntry> = emptyMap()
+
+    init {
+        rebuildIndexes()
+    }
+
     fun customer(id: String): Customer? = _customers.value.firstOrNull { it.id == id }
 
-    fun balance(customer: Customer): Long = customerBalance(customer, _entries.value)
+    fun balance(customer: Customer): Long =
+        balanceByCustomer[customer.id] ?: customer.openingDebt.coerceAtLeast(0L)
 
     fun entriesFor(customerId: String): List<LedgerEntry> =
-        _entries.value.filter { it.customerId == customerId }.sortedByDescending { it.createdAt }
+        entriesByCustomer[customerId].orEmpty()
 
     fun addCustomer(
         name: String,
@@ -61,16 +72,21 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         return true
     }
 
-    fun totalDebt(): Long = _customers.value.sumOf(::balance)
+    fun totalDebt(): Long = balanceByCustomer.values.sum()
 
-    fun indebtedCustomersCount(): Int = _customers.value.count { balance(it) > 0 }
+    fun indebtedCustomersCount(): Int = balanceByCustomer.values.count { it > 0L }
 
     fun todayEntries(type: EntryType? = null): List<LedgerEntry> {
         val today = LocalDate.now()
-        return _entries.value.filter { entry ->
-            val date = Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
-            date == today && (type == null || entry.type == type)
-        }.sortedByDescending { it.createdAt }
+        return _entries.value.asSequence()
+            .filter { entry ->
+                val date = Instant.ofEpochMilli(entry.createdAt)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                date == today && (type == null || entry.type == type)
+            }
+            .sortedByDescending { it.createdAt }
+            .toList()
     }
 
     fun todayCollections(): Long = todayEntries(EntryType.PAYMENT).sumOf { it.amount }
@@ -78,14 +94,14 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     fun todayDebts(): Long = todayEntries(EntryType.DEBT).sumOf { it.amount }
 
     fun topDebtors(): List<Customer> =
-        _customers.value.filter { balance(it) > 0 }.sortedByDescending(::balance)
+        _customers.value.asSequence()
+            .filter { balanceByCustomer[it.id].orZero() > 0L }
+            .sortedByDescending { balanceByCustomer[it.id].orZero() }
+            .toList()
 
-    fun lastEntryFor(customerId: String): LedgerEntry? =
-        _entries.value.filter { it.customerId == customerId }.maxByOrNull { it.createdAt }
+    fun lastEntryFor(customerId: String): LedgerEntry? = lastEntryByCustomer[customerId]
 
-    fun lastPaymentFor(customerId: String): LedgerEntry? =
-        _entries.value.filter { it.customerId == customerId && it.type == EntryType.PAYMENT }
-            .maxByOrNull { it.createdAt }
+    fun lastPaymentFor(customerId: String): LedgerEntry? = lastPaymentByCustomer[customerId]
 
     fun exportJson(): String = repository.exportJson()
 
@@ -97,5 +113,29 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private fun refresh() {
         _customers.value = repository.customers()
         _entries.value = repository.entries()
+        rebuildIndexes()
     }
+
+    private fun rebuildIndexes() {
+        val sortedGroups = _entries.value
+            .groupBy { it.customerId }
+            .mapValues { (_, list) -> list.sortedByDescending { it.createdAt } }
+
+        entriesByCustomer = sortedGroups
+        lastEntryByCustomer = sortedGroups.mapNotNull { (id, list) ->
+            list.firstOrNull()?.let { id to it }
+        }.toMap()
+        lastPaymentByCustomer = sortedGroups.mapNotNull { (id, list) ->
+            list.firstOrNull { it.type == EntryType.PAYMENT }?.let { id to it }
+        }.toMap()
+
+        balanceByCustomer = _customers.value.associate { customer ->
+            val movement = sortedGroups[customer.id].orEmpty().sumOf { entry ->
+                if (entry.type == EntryType.DEBT) entry.amount else -entry.amount
+            }
+            customer.id to (customer.openingDebt + movement).coerceAtLeast(0L)
+        }
+    }
+
+    private fun Long?.orZero(): Long = this ?: 0L
 }

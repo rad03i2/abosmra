@@ -49,7 +49,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,8 +85,8 @@ fun SmartSearchScreen(
     onDebt: (String) -> Unit,
     onPayment: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
 
     val results = remember(customers, entries, query) {
@@ -178,8 +178,8 @@ private enum class ReportPeriod(val label: String, val days: Long?) {
 
 @Composable
 fun ReportsScreen(vm: GasLedgerViewModel) {
-    val customers by vm.customers.collectAsState()
-    val allEntries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val allEntries by vm.entries.collectAsStateWithLifecycle()
     var period by remember { mutableStateOf(ReportPeriod.MONTH) }
 
     val startMillis = remember(period) {
@@ -294,8 +294,8 @@ fun FollowUpScreen(
     onCustomer: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf("لم يسدد منذ 30 يومًا") }
 
     fun daysSincePayment(customer: Customer): Long {
