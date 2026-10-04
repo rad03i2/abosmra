@@ -94,7 +94,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Scaffold(
                 bottomBar = {
-                    if (currentRoute in bottomRoutes) {
+                    if (currentRoute != null && currentRoute in bottomRoutes) {
                         NavigationBar {
                             bottomItems.forEach { item ->
                                 NavigationBarItem(
