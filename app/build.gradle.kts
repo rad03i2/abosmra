@@ -11,13 +11,27 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    buildTypes {
+        release {
+            // Testing release: optimized like production, signed with the debug key so it
+            // can be installed directly on the phone. Replace before store publishing.
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
     }
 
     packaging {
