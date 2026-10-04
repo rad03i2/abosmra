@@ -49,7 +49,7 @@ import com.radwan.abosmra.util.formatTime
 fun ScreenTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
-    actions: @Composable (() -> Unit) = {}
+    actions: @Composable () -> Unit = {}
 ) {
     TopAppBar(
         title = {
@@ -174,7 +174,7 @@ fun CustomerCard(
     balance: Long,
     onClick: () -> Unit,
     lastActivity: String? = null,
-    trailing: @Composable (() -> Unit)? = null
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
