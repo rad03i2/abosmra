@@ -28,11 +28,11 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+      - name: Build optimized release APK
+        run: gradle :app:assembleRelease --stacktrace
 
-      - name: Upload APK
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: abosmra-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: abosmra-release-test-apk
+          path: app/build/outputs/apk/release/app-release.apk
