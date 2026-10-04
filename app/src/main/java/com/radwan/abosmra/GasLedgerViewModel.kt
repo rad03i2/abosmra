@@ -6,6 +6,7 @@ import com.radwan.abosmra.data.AppRepository
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
+import com.radwan.abosmra.data.MutationResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +55,28 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         return customer
     }
 
+    fun updateCustomer(
+        customerId: String,
+        name: String,
+        phone: String?,
+        area: String,
+        address: String,
+        openingDebt: Long,
+        notes: String
+    ): MutationResult {
+        val result = repository.updateCustomer(
+            customerId, name, phone, area, address, openingDebt, notes
+        )
+        if (result.success) refresh()
+        return result
+    }
+
+    fun deleteCustomer(customerId: String): MutationResult {
+        val result = repository.deleteCustomer(customerId)
+        if (result.success) refresh()
+        return result
+    }
+
     fun addDebt(
         customerId: String,
         amount: Long,
@@ -70,6 +93,24 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         repository.addPayment(customerId, amount)
         refresh()
         return true
+    }
+
+    fun updateEntry(
+        entryId: String,
+        amount: Long,
+        bottles: Int?,
+        bottlePrice: Long?,
+        details: String
+    ): MutationResult {
+        val result = repository.updateEntry(entryId, amount, bottles, bottlePrice, details)
+        if (result.success) refresh()
+        return result
+    }
+
+    fun deleteEntry(entryId: String): MutationResult {
+        val result = repository.deleteEntry(entryId)
+        if (result.success) refresh()
+        return result
     }
 
     fun totalDebt(): Long = balanceByCustomer.values.sum()
