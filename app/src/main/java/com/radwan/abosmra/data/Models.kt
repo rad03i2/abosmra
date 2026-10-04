@@ -37,3 +37,9 @@ fun customerBalance(
         .sumOf { if (it.type == EntryType.DEBT) it.amount else -it.amount }
     return (customer.openingDebt + movementBalance).coerceAtLeast(0L)
 }
+
+
+data class MutationResult(
+    val success: Boolean,
+    val message: String
+)
