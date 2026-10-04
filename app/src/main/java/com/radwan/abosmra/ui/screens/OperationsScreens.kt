@@ -33,7 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,8 +68,8 @@ fun DailyCollectionsScreen(
     vm: GasLedgerViewModel,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showPicker by remember { mutableStateOf(false) }
 
@@ -187,8 +187,8 @@ fun DailyDebtsScreen(
     onBack: () -> Unit,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     val today = LocalDate.now()
     val debts = entries.filter { it.type == EntryType.DEBT && dayOf(it.createdAt) == today }.sortedByDescending { it.createdAt }
     val total = debts.sumOf { it.amount }
@@ -268,8 +268,8 @@ fun TopDebtorsScreen(
     onBack: () -> Unit,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var selectedArea by remember { mutableStateOf("الكل") }
     val areas = listOf("الكل") + customers.map { it.area }.filter { it.isNotBlank() }.distinct().sorted()
     val debtors = remember(customers, entries, selectedArea) {
@@ -343,8 +343,8 @@ fun AreasScreen(
     onBack: () -> Unit,
     onCustomer: (String) -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val entries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     var expandedArea by remember { mutableStateOf<String?>(null) }
 
     val grouped = customers.groupBy { it.area.ifBlank { "غير محددة" } }
