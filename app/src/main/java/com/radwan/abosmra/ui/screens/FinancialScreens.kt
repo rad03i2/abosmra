@@ -1,36 +1,41 @@
 package com.radwan.abosmra.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.LocalShipping
+import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,13 +44,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.EntryType
-import com.radwan.abosmra.data.LedgerEntry
 import com.radwan.abosmra.ui.components.EmptyState
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SectionTitle
@@ -55,6 +59,11 @@ import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatDate
 import com.radwan.abosmra.util.formatMoney
+
+private enum class DebtEntryMode(val label: String) {
+    AMOUNT("مبلغ مباشر"),
+    BOTTLES("قناني")
+}
 
 @Composable
 fun AddDebtScreen(
@@ -70,144 +79,187 @@ fun AddDebtScreen(
     }
 
     val previousBalance = vm.balance(customer)
+    var mode by remember { mutableStateOf(DebtEntryMode.AMOUNT) }
     var bottles by remember { mutableStateOf("") }
     var bottlePrice by remember { mutableStateOf("25000") }
-    var directAmount by remember { mutableStateOf("") }
+    var amountText by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
-    var saved by remember { mutableStateOf(false) }
+    var savedAmount by remember { mutableStateOf<Long?>(null) }
 
     val bottleCount = bottles.toIntOrNull() ?: 0
     val onePrice = bottlePrice.toLongOrNull() ?: 0L
-    val calculatedFromBottles = if (bottleCount > 0 && onePrice > 0) bottleCount * onePrice else 0L
-    val debtAmount = directAmount.toLongOrNull()?.takeIf { it > 0 } ?: calculatedFromBottles
+    val bottleTotal = if (bottleCount > 0 && onePrice > 0) bottleCount * onePrice else 0L
+    val debtAmount = if (mode == DebtEntryMode.AMOUNT) amountText.toLongOrNull() ?: 0L else bottleTotal
 
-    if (saved) {
+    savedAmount?.let { saved ->
         AlertDialog(
             onDismissRequest = {},
-            icon = { Icon(Icons.Rounded.CheckCircle, null, tint = PaidGreen) },
+            icon = {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = PaidGreen,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            },
             title = { Text("تم تسجيل الدين") },
-            text = { Text("أُضيف " + formatMoney(debtAmount) + " إلى حساب " + customer.name + ".") },
-            confirmButton = {
-                TextButton(onClick = onBack) { Text("تم") }
-            }
+            text = { Text("أضيف " + formatMoney(saved) + " إلى حساب " + customer.name + ".") },
+            confirmButton = { TextButton(onClick = onBack) { Text("العودة للحساب") } }
         )
     }
 
-    Scaffold(
-        topBar = { ScreenTopBar("إضافة دين", onBack) }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+    Scaffold(topBar = { ScreenTopBar("إضافة دين", onBack) }) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            CustomerBalanceHeader(customer.name, previousBalance)
-
-            Text("تفاصيل قناني الغاز", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = bottles,
-                    onValueChange = {
-                        bottles = it.filter(Char::isDigit).take(3)
-                        directAmount = ""
-                        showError = false
-                    },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("عدد القناني") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                OutlinedTextField(
-                    value = bottlePrice,
-                    onValueChange = {
-                        bottlePrice = it.filter(Char::isDigit).take(9)
-                        directAmount = ""
-                        showError = false
-                    },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("سعر القنينة") },
-                    suffix = { Text("د.ع") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            item {
+                FinanceHeader(
+                    name = customer.name,
+                    label = "الدين الحالي",
+                    value = previousBalance,
+                    debt = true
                 )
             }
 
-            Text("أو أدخل مبلغ الدين مباشرة", color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            OutlinedTextField(
-                value = directAmount,
-                onValueChange = {
-                    directAmount = it.filter(Char::isDigit).take(12)
-                    showError = false
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("مبلغ الدين") },
-                suffix = { Text("د.ع") },
-                singleLine = true,
-                isError = showError,
-                supportingText = {
-                    if (showError) Text("أدخل مبلغًا صحيحًا أكبر من صفر")
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            SectionTitle("مبالغ سريعة")
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf(5_000L, 10_000L, 15_000L).forEach { amount ->
-                    OutlinedButton(
-                        onClick = {
-                            directAmount = amount.toString()
-                            bottles = ""
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(formatMoney(amount))
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf(20_000L, 25_000L, 50_000L).forEach { amount ->
-                    OutlinedButton(
-                        onClick = {
-                            directAmount = amount.toString()
-                            bottles = ""
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(formatMoney(amount))
-                    }
-                }
-            }
-
-            BalanceEquation(
-                firstLabel = "الدين السابق",
-                first = previousBalance,
-                operator = "+",
-                secondLabel = "الدين الجديد",
-                second = debtAmount,
-                resultLabel = "الدين بعد العملية",
-                result = previousBalance + debtAmount,
-                resultColorPositive = false
-            )
-
-            Button(
-                onClick = {
-                    if (debtAmount <= 0L) {
-                        showError = true
-                    } else {
-                        vm.addDebt(
-                            customerId = customerId,
-                            amount = debtAmount,
-                            bottles = bottleCount.takeIf { it > 0 && directAmount.isBlank() },
-                            bottlePrice = onePrice.takeIf { it > 0 && directAmount.isBlank() }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DebtEntryMode.entries.forEach { option ->
+                        FilterChip(
+                            selected = mode == option,
+                            onClick = {
+                                mode = option
+                                showError = false
+                            },
+                            label = { Text(option.label) },
+                            leadingIcon = {
+                                Icon(
+                                    if (option == DebtEntryMode.AMOUNT) Icons.Rounded.Payments else Icons.Rounded.LocalShipping,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         )
-                        saved = true
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Text("تأكيد تسجيل الدين", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (mode == DebtEntryMode.AMOUNT) {
+                item {
+                    AmountField(
+                        value = amountText,
+                        onValueChange = {
+                            amountText = it.filter(Char::isDigit).take(12)
+                            showError = false
+                        },
+                        label = "مبلغ الدين",
+                        isError = showError,
+                        errorText = if (showError) "أدخل مبلغًا أكبر من صفر" else null
+                    )
+                }
+                item {
+                    QuickAmounts(
+                        values = listOf(5_000L, 10_000L, 15_000L, 20_000L, 25_000L, 50_000L),
+                        selected = amountText.toLongOrNull(),
+                        onSelect = {
+                            amountText = it.toString()
+                            showError = false
+                        }
+                    )
+                }
+            } else {
+                item {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(15.dp),
+                            verticalArrangement = Arrangement.spacedBy(11.dp)
+                        ) {
+                            Text("تفاصيل القناني", style = MaterialTheme.typography.titleMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                OutlinedTextField(
+                                    value = bottles,
+                                    onValueChange = {
+                                        bottles = it.filter(Char::isDigit).take(3)
+                                        showError = false
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    label = { Text("العدد") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                                OutlinedTextField(
+                                    value = bottlePrice,
+                                    onValueChange = {
+                                        bottlePrice = it.filter(Char::isDigit).take(9)
+                                        showError = false
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    label = { Text("السعر") },
+                                    suffix = { Text("د.ع") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("الإجمالي", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(formatMoney(bottleTotal), style = MaterialTheme.typography.titleLarge)
+                            }
+                            if (showError) {
+                                Text("أدخل عدد القناني وسعرها.", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                BalanceEquation(
+                    firstLabel = "الدين السابق",
+                    first = previousBalance,
+                    operator = "+",
+                    secondLabel = "الدين الجديد",
+                    second = debtAmount,
+                    resultLabel = "الرصيد الجديد",
+                    result = previousBalance + debtAmount,
+                    resultColorPositive = false
+                )
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        if (debtAmount <= 0L) {
+                            showError = true
+                        } else {
+                            vm.addDebt(
+                                customerId = customerId,
+                                amount = debtAmount,
+                                bottles = bottleCount.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 },
+                                bottlePrice = onePrice.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 }
+                            )
+                            savedAmount = debtAmount
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text("تسجيل الدين", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
@@ -228,114 +280,117 @@ fun AddPaymentScreen(
 
     val currentBalance = vm.balance(customer)
     var amountText by remember { mutableStateOf("") }
-    var savedMessage by remember { mutableStateOf<String?>(null) }
+    var savedAmount by remember { mutableStateOf<Long?>(null) }
 
     val amount = amountText.toLongOrNull() ?: 0L
     val tooHigh = amount > currentBalance && amount > 0
     val remaining = (currentBalance - amount).coerceAtLeast(0L)
 
-    if (savedMessage != null) {
+    savedAmount?.let { saved ->
         AlertDialog(
             onDismissRequest = {},
-            icon = { Icon(Icons.Rounded.CheckCircle, null, tint = PaidGreen) },
-            title = { Text(savedMessage.orEmpty()) },
+            icon = {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = PaidGreen,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            },
+            title = { Text(if (saved == currentBalance) "تم تسديد الحساب" else "تم تسجيل التحصيل") },
             text = {
                 Text(
-                    if (amount == currentBalance) "أصبح رصيد " + customer.name + " صفرًا."
-                    else "تم تسجيل " + formatMoney(amount) + " كتحصيل."
+                    if (saved == currentBalance) "أصبح رصيد " + customer.name + " صفرًا."
+                    else "تم تحصيل " + formatMoney(saved) + " من " + customer.name + "."
                 )
             },
-            confirmButton = {
-                TextButton(onClick = onBack) { Text("تم") }
-            }
+            confirmButton = { TextButton(onClick = onBack) { Text("العودة للحساب") } }
         )
     }
 
-    Scaffold(
-        topBar = { ScreenTopBar("تسجيل تحصيل", onBack) }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+    Scaffold(topBar = { ScreenTopBar("تسجيل تحصيل", onBack) }) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            CustomerBalanceHeader(customer.name, currentBalance)
-
-            OutlinedTextField(
-                value = amountText,
-                onValueChange = { amountText = it.filter(Char::isDigit).take(12) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("مبلغ التحصيل") },
-                suffix = { Text("د.ع") },
-                singleLine = true,
-                isError = tooHigh,
-                supportingText = {
-                    when {
-                        tooHigh -> Text("لا يمكن تحصيل مبلغ أكبر من الدين الحالي")
-                        currentBalance > 0 -> Text("الحد الأعلى: " + formatMoney(currentBalance))
-                    }
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            Button(
-                onClick = { amountText = currentBalance.toString() },
-                enabled = currentBalance > 0,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("تسديد كامل")
+            item {
+                FinanceHeader(
+                    name = customer.name,
+                    label = "المبلغ المطلوب",
+                    value = currentBalance,
+                    debt = currentBalance > 0
+                )
             }
 
-            SectionTitle("مبالغ سريعة")
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf(5_000L, 10_000L, 25_000L).forEach { quick ->
-                    OutlinedButton(
-                        onClick = { amountText = quick.coerceAtMost(currentBalance).toString() },
-                        enabled = currentBalance > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(formatMoney(quick))
+            if (currentBalance == 0L) {
+                item { EmptyState("الحساب مسدد", "لا يوجد مبلغ متبقٍ على هذا الزبون.") }
+            } else {
+                item {
+                    AmountField(
+                        value = amountText,
+                        onValueChange = { amountText = it.filter(Char::isDigit).take(12) },
+                        label = "المبلغ المستلم",
+                        isError = tooHigh,
+                        errorText = if (tooHigh) "المبلغ أكبر من الدين الحالي" else "الحد الأعلى " + formatMoney(currentBalance)
+                    )
+                }
+
+                item {
+                    QuickAmounts(
+                        values = listOf(5_000L, 10_000L, 25_000L, currentBalance).distinct(),
+                        selected = amountText.toLongOrNull(),
+                        onSelect = { amountText = it.coerceAtMost(currentBalance).toString() },
+                        fullAmount = currentBalance
+                    )
+                }
+
+                item {
+                    BalanceEquation(
+                        firstLabel = "الدين الحالي",
+                        first = currentBalance,
+                        operator = "-",
+                        secondLabel = "التحصيل",
+                        second = amount,
+                        resultLabel = "المتبقي",
+                        result = remaining,
+                        resultColorPositive = remaining == 0L && amount > 0
+                    )
+                }
+
+                if (remaining == 0L && amount > 0 && !tooHigh) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(13.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Rounded.Check, null, tint = PaidGreen)
+                                Text("هذه الدفعة ستغلق الحساب بالكامل.", color = PaidGreen)
+                            }
+                        }
                     }
                 }
-            }
 
-            BalanceEquation(
-                firstLabel = "الدين الحالي",
-                first = currentBalance,
-                operator = "-",
-                secondLabel = "المبلغ المدفوع",
-                second = amount,
-                resultLabel = "المتبقي",
-                result = remaining,
-                resultColorPositive = remaining == 0L && amount > 0
-            )
-
-            if (remaining == 0L && amount > 0 && !tooHigh) {
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                item {
+                    Button(
+                        onClick = {
+                            if (vm.addPayment(customerId, amount)) savedAmount = amount
+                        },
+                        enabled = amount > 0 && amount <= currentBalance,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = PaidGreen)
-                        Text("تم تسديد الحساب بالكامل ✓", fontWeight = FontWeight.Bold, color = PaidGreen)
+                        Text("تأكيد التحصيل", fontWeight = FontWeight.SemiBold)
                     }
                 }
-            }
-
-            Button(
-                onClick = {
-                    if (vm.addPayment(customerId, amount)) {
-                        savedMessage = if (amount == currentBalance) "تم تسديد الحساب بالكامل ✓" else "تم تسجيل التحصيل بنجاح"
-                    }
-                },
-                enabled = amount > 0 && amount <= currentBalance,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Text("تأكيد التحصيل", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -363,37 +418,47 @@ fun CustomerTransactionsScreen(
 
     var filter by remember { mutableStateOf(MovementFilter.ALL) }
     var recentOnly by remember { mutableStateOf(false) }
-    val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L
+    val thirtyDaysAgo = remember { System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L }
 
-    val entries = allEntries
-        .filter { it.customerId == customerId }
-        .filter {
-            when (filter) {
-                MovementFilter.ALL -> true
-                MovementFilter.DEBTS -> it.type == EntryType.DEBT
-                MovementFilter.PAYMENTS -> it.type == EntryType.PAYMENT
-            }
-        }
-        .filter { !recentOnly || it.createdAt >= thirtyDaysAgo }
-        .sortedByDescending { it.createdAt }
-
-    fun balanceAfter(entry: LedgerEntry): Long {
-        val movementsUntil = allEntries
-            .filter { it.customerId == customerId && it.createdAt <= entry.createdAt }
-            .sumOf { if (it.type == EntryType.DEBT) it.amount else -it.amount }
-        return (customer.openingDebt + movementsUntil).coerceAtLeast(0L)
+    val customerEntries = remember(allEntries, customerId) {
+        allEntries.filter { it.customerId == customerId }.sortedBy { it.createdAt }
     }
 
-    Scaffold(
-        topBar = { ScreenTopBar("سجل حركات " + customer.name, onBack) }
-    ) { padding ->
+    val balanceAfterByEntry = remember(customerEntries, customer.openingDebt) {
+        var running = customer.openingDebt
+        buildMap<String, Long> {
+            customerEntries.forEach { entry ->
+                running += if (entry.type == EntryType.DEBT) entry.amount else -entry.amount
+                put(entry.id, running.coerceAtLeast(0L))
+            }
+        }
+    }
+
+    val visibleEntries = remember(customerEntries, filter, recentOnly, thirtyDaysAgo) {
+        customerEntries.asSequence()
+            .filter {
+                when (filter) {
+                    MovementFilter.ALL -> true
+                    MovementFilter.DEBTS -> it.type == EntryType.DEBT
+                    MovementFilter.PAYMENTS -> it.type == EntryType.PAYMENT
+                }
+            }
+            .filter { !recentOnly || it.createdAt >= thirtyDaysAgo }
+            .sortedByDescending { it.createdAt }
+            .toList()
+    }
+
+    Scaffold(topBar = { ScreenTopBar("حركات " + customer.name, onBack) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
                     MovementFilter.entries.forEach { option ->
                         FilterChip(
                             selected = filter == option,
@@ -401,31 +466,35 @@ fun CustomerTransactionsScreen(
                             label = { Text(option.label) }
                         )
                     }
+                    FilterChip(
+                        selected = recentOnly,
+                        onClick = { recentOnly = !recentOnly },
+                        label = { Text("آخر 30 يومًا") }
+                    )
                 }
             }
-            item {
-                FilterChip(
-                    selected = recentOnly,
-                    onClick = { recentOnly = !recentOnly },
-                    label = { Text("آخر 30 يومًا") }
-                )
-            }
+
             item {
                 Text(
-                    entries.size.toString() + " حركة",
+                    visibleEntries.size.toString() + " حركة",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (entries.isEmpty()) {
-                item {
-                    EmptyState("لا توجد حركات", "غيّر الفلاتر أو ابدأ بإضافة دين جديد.")
-                }
+
+            if (visibleEntries.isEmpty()) {
+                item { EmptyState("لا توجد حركات", "غيّر الفلتر أو أضف حركة جديدة.") }
             } else {
-                items(entries, key = { it.id }) { entry ->
-                    Card(shape = RoundedCornerShape(18.dp)) {
+                items(visibleEntries, key = { it.id }) { entry ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
                         TransactionRow(
                             entry = entry,
-                            showBalance = balanceAfter(entry),
+                            showBalance = balanceAfterByEntry[entry.id],
                             modifier = Modifier.padding(horizontal = 14.dp)
                         )
                     }
@@ -450,9 +519,20 @@ fun StatementScreen(
         return
     }
 
-    val entries = allEntries.filter { it.customerId == customerId }.sortedByDescending { it.createdAt }
-    val totalDebts = customer.openingDebt + entries.filter { it.type == EntryType.DEBT }.sumOf { it.amount }
-    val totalPaid = entries.filter { it.type == EntryType.PAYMENT }.sumOf { it.amount }
+    val entries = remember(allEntries, customerId) {
+        allEntries.filter { it.customerId == customerId }.sortedByDescending { it.createdAt }
+    }
+    val totals = remember(entries, customer.openingDebt) {
+        val debts = customer.openingDebt + entries.asSequence()
+            .filter { it.type == EntryType.DEBT }
+            .sumOf { it.amount }
+        val paid = entries.asSequence()
+            .filter { it.type == EntryType.PAYMENT }
+            .sumOf { it.amount }
+        debts to paid
+    }
+    val totalDebts = totals.first
+    val totalPaid = totals.second
     val balance = vm.balance(customer)
 
     fun shareStatement() {
@@ -482,47 +562,53 @@ fun StatementScreen(
             .onFailure { context.startActivity(fallback) }
     }
 
-    Scaffold(
-        topBar = { ScreenTopBar("كشف الحساب", onBack) }
-    ) { padding ->
+    Scaffold(topBar = { ScreenTopBar("كشف الحساب", onBack) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(11.dp)
                     ) {
-                        Text("دفتر الغاز", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                        Text("كشف حساب", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        SoftDivider()
-                        StatementLine("اسم الزبون", customer.name)
-                        StatementLine("رقم الهاتف", customer.phone ?: "غير مضاف")
-                        StatementLine("المنطقة", customer.area.ifBlank { "غير محددة" })
-                        StatementLine("تاريخ الكشف", formatDate(System.currentTimeMillis()))
-                        Spacer(Modifier.height(4.dp))
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("الدين الحالي", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                formatMoney(balance),
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (balance > 0) DebtRed else PaidGreen
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("دفتر الغاز", style = MaterialTheme.typography.titleLarge)
+                                Text("كشف حساب", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(formatDate(System.currentTimeMillis()), style = MaterialTheme.typography.bodySmall)
                         }
                         SoftDivider()
+                        StatementLine("الزبون", customer.name)
+                        if (!customer.phone.isNullOrBlank()) StatementLine("الهاتف", customer.phone)
+                        if (customer.area.isNotBlank()) StatementLine("المنطقة", customer.area)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = if (balance > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(17.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("الدين الحالي", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    formatMoney(balance),
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    color = if (balance > 0) DebtRed else PaidGreen
+                                )
+                            }
+                        }
                         StatementLine("إجمالي الديون", formatMoney(totalDebts))
                         StatementLine("إجمالي المدفوع", formatMoney(totalPaid))
-                        StatementLine("المبلغ المتبقي", formatMoney(balance), bold = true)
                     }
                 }
             }
@@ -531,8 +617,12 @@ fun StatementScreen(
             if (entries.isEmpty()) {
                 item { Text("لا توجد عمليات مسجلة.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
-                items(entries.take(8), key = { it.id }) { entry ->
-                    Card(shape = RoundedCornerShape(18.dp)) {
+                items(entries.take(6), key = { it.id }) { entry ->
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
                         TransactionRow(entry, modifier = Modifier.padding(horizontal = 14.dp))
                     }
                 }
@@ -541,12 +631,12 @@ fun StatementScreen(
             item {
                 Button(
                     onClick = ::shareStatement,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(18.dp)
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = MaterialTheme.shapes.medium
                 ) {
                     Icon(Icons.Rounded.Share, null)
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text("مشاركة كشف الحساب عبر WhatsApp", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.size(7.dp))
+                    Text("مشاركة عبر WhatsApp")
                 }
             }
         }
@@ -554,17 +644,90 @@ fun StatementScreen(
 }
 
 @Composable
-private fun CustomerBalanceHeader(name: String, balance: Long) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+private fun FinanceHeader(
+    name: String,
+    label: String,
+    value: Long,
+    debt: Boolean
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-            Text("الدين الحالي: " + formatMoney(balance), color = MaterialTheme.colorScheme.primary)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleMedium)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                formatMoney(value),
+                style = MaterialTheme.typography.titleLarge,
+                color = if (debt) DebtRed else PaidGreen
+            )
+        }
+    }
+}
+
+@Composable
+private fun AmountField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean,
+    errorText: String?
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        suffix = { Text("د.ع") },
+        singleLine = true,
+        isError = isError,
+        supportingText = errorText?.let { message ->
+            {
+                Text(
+                    message,
+                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        textStyle = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Start),
+        shape = MaterialTheme.shapes.medium
+    )
+}
+
+@Composable
+private fun QuickAmounts(
+    values: List<Long>,
+    selected: Long?,
+    onSelect: (Long) -> Unit,
+    fullAmount: Long? = null
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("اختيار سريع", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            values.forEach { amount ->
+                FilterChip(
+                    selected = selected == amount,
+                    onClick = { onSelect(amount) },
+                    label = {
+                        Text(
+                            if (fullAmount != null && amount == fullAmount) "الكل • " + formatMoney(amount)
+                            else formatMoney(amount)
+                        )
+                    }
+                )
+            }
         }
     }
 }
@@ -580,13 +743,14 @@ private fun BalanceEquation(
     result: Long,
     resultColorPositive: Boolean
 ) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             StatementLine(firstLabel, formatMoney(first))
             StatementLine(operator + " " + secondLabel, formatMoney(second))
@@ -616,7 +780,7 @@ private fun StatementLine(
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             value,
-            fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.SemiBold,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium,
             color = valueColor,
             textAlign = TextAlign.End
         )
@@ -626,10 +790,9 @@ private fun StatementLine(
 @Composable
 private fun MissingCustomerScreen(onBack: () -> Unit) {
     Scaffold(topBar = { ScreenTopBar("الزبون", onBack) }) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.Center
         ) {
             Text("تعذر العثور على الزبون.")
         }
