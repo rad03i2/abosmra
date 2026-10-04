@@ -30,7 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,7 +62,7 @@ fun AddDebtScreen(
     customerId: String,
     onBack: () -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
         MissingCustomerScreen(onBack)
@@ -219,7 +219,7 @@ fun AddPaymentScreen(
     customerId: String,
     onBack: () -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
         MissingCustomerScreen(onBack)
@@ -353,8 +353,8 @@ fun CustomerTransactionsScreen(
     customerId: String,
     onBack: () -> Unit
 ) {
-    val customers by vm.customers.collectAsState()
-    val allEntries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val allEntries by vm.entries.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
         MissingCustomerScreen(onBack)
@@ -442,8 +442,8 @@ fun StatementScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val customers by vm.customers.collectAsState()
-    val allEntries by vm.entries.collectAsState()
+    val customers by vm.customers.collectAsStateWithLifecycle()
+    val allEntries by vm.entries.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
         MissingCustomerScreen(onBack)
