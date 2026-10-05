@@ -44,6 +44,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertCustomer(customer.toEntity()) }
         customersCache.add(0, customer)
+        maybeCreateAutomaticBackup()
         return customer
     }
 
@@ -80,6 +81,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.updateCustomer(updated.toEntity()) }
         customersCache = customersCache.map { if (it.id == customerId) updated else it }.toMutableList()
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تحديث بيانات الزبون.")
     }
 
@@ -97,6 +99,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.deleteCustomerById(customerId) }
         customersCache.removeAll { it.id == customerId }
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الزبون.")
     }
 
@@ -121,6 +124,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
+        maybeCreateAutomaticBackup()
         return entry
     }
 
@@ -174,6 +178,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.updateEntry(updated.toEntity()) }
         entriesCache = entriesCache.map { if (it.id == entryId) updated else it }.toMutableList()
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تعديل الحركة.")
     }
 
@@ -195,6 +200,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.deleteEntryById(entryId) }
         entriesCache.removeAll { it.id == entryId }
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الحركة.")
     }
 
@@ -209,6 +215,7 @@ class AppRepository(context: Context) {
         customersCache = customers.toMutableList()
         entriesCache = entries.toMutableList()
         prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
+        maybeCreateAutomaticBackup(force = true)
     }
 
     fun exportJson(): String = createBackupJson()
