@@ -43,7 +43,7 @@ import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV3
 import com.radwan.abosmra.ui.screens.SettingsScreenV3
 import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
-import com.radwan.abosmra.ui.screens.StatementScreenV4
+import com.radwan.abosmra.ui.screens.StatementScreenV7
 import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
 import com.radwan.abosmra.ui.theme.GasLedgerTheme
 
@@ -212,7 +212,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        StatementScreenV4(vm, id, navController::popBackStack)
+                        StatementScreenV7(vm, id, navController::popBackStack)
                     }
                     composable(Routes.COLLECTIONS) {
                         DailyCollectionsScreenV4(vm, onCustomer = { navController.navigate(Routes.customer(it)) })
