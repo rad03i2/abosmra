@@ -141,6 +141,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
+        maybeCreateAutomaticBackup()
         return entry
     }
 
