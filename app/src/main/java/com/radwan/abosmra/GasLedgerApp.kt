@@ -41,7 +41,7 @@ import com.radwan.abosmra.ui.screens.DailyDebtsScreenV4
 import com.radwan.abosmra.ui.screens.FollowUpScreenV4
 import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV3
-import com.radwan.abosmra.ui.screens.SettingsScreenV3
+import com.radwan.abosmra.ui.screens.SettingsScreenV8
 import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
 import com.radwan.abosmra.ui.screens.StatementScreenV7
 import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
@@ -242,7 +242,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         FollowUpScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SETTINGS) {
-                        SettingsScreenV3(vm)
+                        SettingsScreenV8(vm)
                     }
                 }
             }
