@@ -373,7 +373,7 @@ fun SettingsScreenV3(vm: GasLedgerViewModel) {
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             Text("دفتر الغاز", style = MaterialTheme.typography.titleLarge)
                             Text(
-                                "الإصدار 1.6.0 • إدارة آمنة للحسابات",
+                                "الإصدار 1.7.0 • كشف حساب احترافي",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
