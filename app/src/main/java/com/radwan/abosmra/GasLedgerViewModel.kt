@@ -3,6 +3,9 @@ package com.radwan.abosmra
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.radwan.abosmra.data.AppRepository
+import com.radwan.abosmra.data.AutoBackupInterval
+import com.radwan.abosmra.data.BackupPreview
+import com.radwan.abosmra.data.BackupRestoreResult
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
@@ -145,6 +148,30 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     fun lastPaymentFor(customerId: String): LedgerEntry? = lastPaymentByCustomer[customerId]
 
     fun exportJson(): String = repository.exportJson()
+
+    fun createBackupJson(): String = repository.createBackupJson()
+
+    fun previewBackup(raw: String): BackupPreview =
+        repository.previewBackup(raw)
+
+    fun restoreBackup(raw: String): BackupRestoreResult {
+        val result = repository.restoreBackup(raw)
+        if (result.success) refresh()
+        return result
+    }
+
+    fun markManualBackupCreated(timestamp: Long = System.currentTimeMillis()) {
+        repository.markManualBackupCreated(timestamp)
+    }
+
+    fun lastBackupAt(): Long = repository.lastBackupAt()
+
+    fun autoBackupInterval(): AutoBackupInterval =
+        repository.autoBackupInterval()
+
+    fun setAutoBackupInterval(interval: AutoBackupInterval) {
+        repository.setAutoBackupInterval(interval)
+    }
 
     fun resetDemoData() {
         repository.resetDemoData()

@@ -1,10 +1,12 @@
 package com.radwan.abosmra.data
 
 import android.content.Context
+import com.radwan.abosmra.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 class AppRepository(context: Context) {
@@ -17,6 +19,7 @@ class AppRepository(context: Context) {
 
     init {
         loadRoomOrMigrateLegacy()
+        maybeCreateAutomaticBackup()
     }
 
     fun customers(): List<Customer> = customersCache.toList()
@@ -41,6 +44,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertCustomer(customer.toEntity()) }
         customersCache.add(0, customer)
+        maybeCreateAutomaticBackup()
         return customer
     }
 
@@ -77,6 +81,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.updateCustomer(updated.toEntity()) }
         customersCache = customersCache.map { if (it.id == customerId) updated else it }.toMutableList()
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تحديث بيانات الزبون.")
     }
 
@@ -94,6 +99,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.deleteCustomerById(customerId) }
         customersCache.removeAll { it.id == customerId }
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الزبون.")
     }
 
@@ -118,6 +124,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
+        maybeCreateAutomaticBackup()
         return entry
     }
 
@@ -134,6 +141,7 @@ class AppRepository(context: Context) {
         )
         dbCall { dao.insertEntry(entry.toEntity()) }
         entriesCache.add(0, entry)
+        maybeCreateAutomaticBackup()
         return entry
     }
 
@@ -171,6 +179,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.updateEntry(updated.toEntity()) }
         entriesCache = entriesCache.map { if (it.id == entryId) updated else it }.toMutableList()
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تعديل الحركة.")
     }
 
@@ -192,6 +201,7 @@ class AppRepository(context: Context) {
 
         dbCall { dao.deleteEntryById(entryId) }
         entriesCache.removeAll { it.id == entryId }
+        maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الحركة.")
     }
 
@@ -206,17 +216,116 @@ class AppRepository(context: Context) {
         customersCache = customers.toMutableList()
         entriesCache = entries.toMutableList()
         prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
+        maybeCreateAutomaticBackup(force = true)
     }
 
-    fun exportJson(): String {
-        val root = JSONObject()
-        root.put("app", "دفتر الغاز")
-        root.put("version", 3)
-        root.put("storage", "room-sqlite")
-        root.put("exportedAt", System.currentTimeMillis())
-        root.put("customers", customersToJson())
-        root.put("entries", entriesToJson())
-        return root.toString(2)
+    fun exportJson(): String = createBackupJson()
+
+    fun createBackupJson(): String =
+        BackupJson.encode(
+            customers = customersCache,
+            entries = entriesCache,
+            appVersion = BuildConfig.VERSION_NAME
+        )
+
+    fun previewBackup(raw: String): BackupPreview =
+        BackupValidator.preview(raw)
+
+    fun restoreBackup(raw: String): BackupRestoreResult {
+        return runCatching {
+            val payload = BackupValidator.parseValid(raw)
+
+            // Always protect the current state before replacing it.
+            writeRecoveryBackup(createBackupJson())
+
+            dbCall {
+                dao.replaceAll(
+                    customers = payload.customers.map(Customer::toEntity),
+                    entries = payload.entries.map(LedgerEntry::toEntity)
+                )
+            }
+
+            customersCache = payload.customers.toMutableList()
+            entriesCache = payload.entries.toMutableList()
+
+            val now = System.currentTimeMillis()
+            prefs.edit()
+                .putLong(LAST_RESTORE_AT_KEY, now)
+                .putBoolean(ROOM_INITIALIZED_KEY, true)
+                .apply()
+
+            BackupRestoreResult(
+                success = true,
+                message = "تمت الاستعادة بنجاح، وتم حفظ نسخة أمان من البيانات السابقة.",
+                customerCount = payload.customers.size,
+                entryCount = payload.entries.size
+            )
+        }.getOrElse {
+            BackupRestoreResult(
+                success = false,
+                message = it.message ?: "تعذر استعادة النسخة الاحتياطية."
+            )
+        }
+    }
+
+    fun markManualBackupCreated(timestamp: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(LAST_MANUAL_BACKUP_AT_KEY, timestamp).apply()
+    }
+
+    fun lastBackupAt(): Long =
+        maxOf(
+            prefs.getLong(LAST_MANUAL_BACKUP_AT_KEY, 0L),
+            prefs.getLong(LAST_AUTO_BACKUP_AT_KEY, 0L)
+        )
+
+    fun autoBackupInterval(): AutoBackupInterval =
+        AutoBackupInterval.fromStorage(
+            prefs.getString(AUTO_BACKUP_INTERVAL_KEY, AutoBackupInterval.WEEKLY.storageValue)
+        )
+
+    fun setAutoBackupInterval(interval: AutoBackupInterval) {
+        prefs.edit()
+            .putString(AUTO_BACKUP_INTERVAL_KEY, interval.storageValue)
+            .apply()
+        maybeCreateAutomaticBackup(force = interval != AutoBackupInterval.OFF)
+    }
+
+    private fun maybeCreateAutomaticBackup(force: Boolean = false) {
+        val interval = autoBackupInterval()
+        if (interval == AutoBackupInterval.OFF) return
+
+        val now = System.currentTimeMillis()
+        val last = prefs.getLong(LAST_AUTO_BACKUP_AT_KEY, 0L)
+        val dueAfter = when (interval) {
+            AutoBackupInterval.DAILY -> 24L * 60L * 60L * 1000L
+            AutoBackupInterval.WEEKLY -> 7L * 24L * 60L * 60L * 1000L
+            AutoBackupInterval.OFF -> Long.MAX_VALUE
+        }
+
+        if (!force && last > 0L && now - last < dueAfter) return
+
+        runCatching {
+            val dir = File(appContext.filesDir, "auto_backups").apply { mkdirs() }
+            val file = File(dir, "auto-backup-" + now + ".json")
+            file.writeText(createBackupJson())
+            trimBackupDirectory(dir, keep = 7)
+            prefs.edit().putLong(LAST_AUTO_BACKUP_AT_KEY, now).apply()
+        }
+    }
+
+    private fun writeRecoveryBackup(raw: String) {
+        val now = System.currentTimeMillis()
+        val dir = File(appContext.filesDir, "restore_recovery").apply { mkdirs() }
+        File(dir, "before-restore-" + now + ".json").writeText(raw)
+        trimBackupDirectory(dir, keep = 5)
+    }
+
+    private fun trimBackupDirectory(dir: File, keep: Int) {
+        dir.listFiles()
+            ?.filter { it.isFile && it.extension == "json" }
+            ?.sortedByDescending { it.lastModified() }
+            ?.drop(keep)
+            ?.forEach { runCatching { it.delete() } }
     }
 
     private fun ledgerIsValid(customer: Customer, customerEntries: List<LedgerEntry>): Boolean {
@@ -382,5 +491,9 @@ class AppRepository(context: Context) {
 
     companion object {
         private const val ROOM_INITIALIZED_KEY = "room_initialized_v1"
+        private const val LAST_MANUAL_BACKUP_AT_KEY = "last_manual_backup_at"
+        private const val LAST_AUTO_BACKUP_AT_KEY = "last_auto_backup_at"
+        private const val LAST_RESTORE_AT_KEY = "last_restore_at"
+        private const val AUTO_BACKUP_INTERVAL_KEY = "auto_backup_interval"
     }
 }
