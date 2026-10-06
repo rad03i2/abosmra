@@ -1219,39 +1219,43 @@ private fun rememberFinancialFeedbackHandler(
     var pendingNotification by remember {
         mutableStateOf<FinancialOperationReceipt?>(null)
     }
+    var notificationPermissionGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        val receipt = pendingNotification
-        if (granted && receipt != null) {
-            vm.scheduleFinancialOperationNotification(receipt)
-            pendingNotification = null
-        }
+        notificationPermissionGranted = granted
     }
 
     return FinancialFeedbackController(
         onSaved = { receipt ->
             pendingNotification = receipt
             vm.playFinancialSuccessSound()
+
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !notificationPermissionGranted
+            ) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         },
         onConfirmed = {
             val receipt = pendingNotification
-            if (receipt != null) {
-                if (
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (FinancialOperationFeedback.canPostNotifications(context)) {
-                    vm.scheduleFinancialOperationNotification(receipt)
-                    pendingNotification = null
-                } else {
-                    pendingNotification = null
-                }
+            pendingNotification = null
+            if (
+                receipt != null &&
+                notificationPermissionGranted &&
+                FinancialOperationFeedback.canPostNotifications(context)
+            ) {
+                vm.scheduleFinancialOperationNotification(receipt)
             }
         }
     )
