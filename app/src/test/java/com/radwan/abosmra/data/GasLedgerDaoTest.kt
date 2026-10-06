@@ -86,6 +86,63 @@ class GasLedgerDaoTest {
     }
 
     @Test
+    fun protectedDebtInsert_blocksRecentDuplicateButAllowsExplicitOverride() = runTest {
+        val customer = CustomerEntity(
+            id = "duplicate-customer",
+            name = "أحمد",
+            phone = null,
+            area = "",
+            address = "",
+            openingDebt = 0L,
+            notes = "",
+            createdAt = 1_000L
+        )
+        dao.insertCustomer(customer)
+
+        val first = LedgerEntryEntity(
+            id = "debt-1",
+            customerId = customer.id,
+            type = EntryType.DEBT.name,
+            amount = 5_000L,
+            bottles = null,
+            bottlePrice = null,
+            details = "",
+            createdAt = 20_000L
+        )
+        val second = first.copy(
+            id = "debt-2",
+            createdAt = 23_000L
+        )
+        val third = first.copy(
+            id = "debt-3",
+            createdAt = 24_000L
+        )
+
+        val firstDuplicate = dao.insertDebtProtected(
+            entry = first,
+            duplicateCutoffMillis = 5_000L,
+            allowRecentDuplicate = false
+        )
+        assertNull(firstDuplicate)
+
+        val duplicate = dao.insertDebtProtected(
+            entry = second,
+            duplicateCutoffMillis = 8_000L,
+            allowRecentDuplicate = false
+        )
+        assertEquals(first.id, duplicate?.id)
+        assertEquals(1, dao.getEntriesForCustomer(customer.id).size)
+
+        val forcedDuplicate = dao.insertDebtProtected(
+            entry = third,
+            duplicateCutoffMillis = 9_000L,
+            allowRecentDuplicate = true
+        )
+        assertNull(forcedDuplicate)
+        assertEquals(2, dao.getEntriesForCustomer(customer.id).size)
+    }
+
+    @Test
     fun replaceAll_behavesLikeBackupRestoreAndRemovesOldRows() = runTest {
         val oldCustomer = CustomerEntity(
             id = "old",
