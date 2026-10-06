@@ -50,6 +50,7 @@ import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.CustomerCard
 import com.radwan.abosmra.ui.components.EmptyState
 import com.radwan.abosmra.ui.components.MetricCard
@@ -244,16 +245,17 @@ fun TopDebtorsScreenV4(vm: GasLedgerViewModel, onBack: () -> Unit, onCustomer: (
                     ) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text((index + 1).toString(), style = MaterialTheme.typography.titleSmall)
-                                    }
-                                }
-                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                CustomerAvatar(
+                                    customerId = customer.id,
+                                    size = 40.dp
+                                )
+                                Text(
+                                    "#" + (index + 1).toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 7.dp)
+                                )
+                                Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
                                     Text(customer.name, style = MaterialTheme.typography.titleMedium)
                                     Text(customer.area.ifBlank { "بدون منطقة" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
@@ -374,13 +376,26 @@ private fun V4OperationRow(entry: LedgerEntry, customer: Customer?, positive: Bo
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                shape = CircleShape,
-                color = if (positive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ReceiptLong, null, tint = if (positive) PaidGreen else DebtRed, modifier = Modifier.size(19.dp))
+            if (customer != null) {
+                CustomerAvatar(
+                    customerId = customer.id,
+                    size = 40.dp
+                )
+            } else {
+                Surface(
+                    shape = CircleShape,
+                    color = if (positive) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.ReceiptLong,
+                            null,
+                            tint = if (positive) PaidGreen else DebtRed,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                 }
             }
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
