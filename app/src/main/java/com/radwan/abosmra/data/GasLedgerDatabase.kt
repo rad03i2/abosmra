@@ -84,6 +84,125 @@ interface GasLedgerDao {
     @Query("SELECT COUNT(*) FROM ledger_entries")
     suspend fun entryCount(): Int
 
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'DEBT' THEN amount ELSE 0 END), 0) AS debts,
+            COALESCE(SUM(CASE WHEN type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS collections,
+            COALESCE(SUM(CASE WHEN type = 'DEBT' THEN COALESCE(bottles, 0) ELSE 0 END), 0) AS bottles,
+            (SELECT COUNT(*) FROM customers WHERE created_at >= :startMillis AND created_at < :endMillis) AS newCustomers
+        FROM ledger_entries
+        WHERE created_at >= :startMillis AND created_at < :endMillis
+        """
+    )
+    suspend fun reportPeriodMetrics(
+        startMillis: Long,
+        endMillis: Long
+    ): ReportPeriodMetrics
+
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN balance > 0 THEN balance ELSE 0 END), 0) AS totalDebt,
+            COALESCE(SUM(CASE WHEN balance > 0 THEN 1 ELSE 0 END), 0) AS openAccounts,
+            COUNT(*) AS totalCustomers
+        FROM (
+            SELECT
+                c.id AS customerId,
+                c.opening_debt +
+                    COALESCE(SUM(
+                        CASE
+                            WHEN e.type = 'DEBT' THEN e.amount
+                            WHEN e.type = 'PAYMENT' THEN -e.amount
+                            ELSE 0
+                        END
+                    ), 0) AS balance
+            FROM customers c
+            LEFT JOIN ledger_entries e ON e.customer_id = c.id
+            GROUP BY c.id
+        )
+        """
+    )
+    suspend fun currentDebtSummary(): CurrentDebtSummary
+
+    @Query(
+        """
+        SELECT area, SUM(balance) AS balance
+        FROM (
+            SELECT
+                CASE WHEN TRIM(c.area) = '' THEN 'غير محددة' ELSE c.area END AS area,
+                CASE
+                    WHEN c.opening_debt +
+                        COALESCE(SUM(
+                            CASE
+                                WHEN e.type = 'DEBT' THEN e.amount
+                                WHEN e.type = 'PAYMENT' THEN -e.amount
+                                ELSE 0
+                            END
+                        ), 0) > 0
+                    THEN c.opening_debt +
+                        COALESCE(SUM(
+                            CASE
+                                WHEN e.type = 'DEBT' THEN e.amount
+                                WHEN e.type = 'PAYMENT' THEN -e.amount
+                                ELSE 0
+                            END
+                        ), 0)
+                    ELSE 0
+                END AS balance
+            FROM customers c
+            LEFT JOIN ledger_entries e ON e.customer_id = c.id
+            GROUP BY c.id
+        )
+        WHERE balance > 0
+        GROUP BY area
+        ORDER BY balance DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun topAreasByDebt(limit: Int): List<AreaDebtSummary>
+
+    @Query(
+        """
+        SELECT
+            c.id AS customerId,
+            c.name AS name,
+            CASE WHEN TRIM(c.area) = '' THEN 'غير محددة' ELSE c.area END AS area,
+            c.opening_debt +
+                COALESCE(SUM(
+                    CASE
+                        WHEN e.type = 'DEBT' THEN e.amount
+                        WHEN e.type = 'PAYMENT' THEN -e.amount
+                        ELSE 0
+                    END
+                ), 0) AS balance
+        FROM customers c
+        LEFT JOIN ledger_entries e ON e.customer_id = c.id
+        GROUP BY c.id
+        HAVING balance > 0
+        ORDER BY balance DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun topCustomersByDebt(limit: Int): List<CustomerDebtSummary>
+
+    @Query(
+        """
+        SELECT
+            strftime('%Y-%m-%d', created_at / 1000, 'unixepoch', 'localtime') AS dayKey,
+            COALESCE(SUM(CASE WHEN type = 'DEBT' THEN amount ELSE 0 END), 0) AS debts,
+            COALESCE(SUM(CASE WHEN type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS collections
+        FROM ledger_entries
+        WHERE created_at >= :startMillis AND created_at < :endMillis
+        GROUP BY dayKey
+        ORDER BY dayKey ASC
+        """
+    )
+    suspend fun dailyMovementSummary(
+        startMillis: Long,
+        endMillis: Long
+    ): List<DailyMovementSummary>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomer(customer: CustomerEntity)
 
