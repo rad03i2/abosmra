@@ -132,10 +132,20 @@ class AppRepository(context: Context) {
         require(candidateAmount > 0L)
         require(dao.getCustomerById(customerId) != null) { "Customer not found" }
 
-        val recent = dao.recentDebtAmounts(
-            customerId = customerId,
-            limit = DebtSafetyRules.ANOMALY_HISTORY_LIMIT
-        )
+        val historyCutoff = System.currentTimeMillis() - 180L * 24L * 60L * 60L * 1_000L
+        val recent = dao.getEntriesForCustomer(customerId)
+            .asSequence()
+            .map(LedgerEntryEntity::toModel)
+            .filter { entry ->
+                entry.type == EntryType.DEBT &&
+                    entry.createdAt >= historyCutoff &&
+                    entry.amount > 0L
+            }
+            .sortedByDescending { it.createdAt }
+            .take(DebtSafetyRules.ANOMALY_HISTORY_LIMIT)
+            .map { it.amount }
+            .toList()
+
         return DebtSafetyRules.anomalyWarning(recent, candidateAmount)
     }
 
