@@ -26,7 +26,6 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
@@ -52,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.radwan.abosmra.BuildConfig
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.AutoBackupInterval
 import com.radwan.abosmra.data.BackupPreview
@@ -431,7 +431,7 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                 V8SettingsRow(
                     Icons.Rounded.Info,
                     "حول دفتر الغاز",
-                    "الإصدار 2.5.0 • التطوير والتصميم: رضوان عبدالهادي"
+                    "الإصدار " + BuildConfig.VERSION_NAME + " • التطوير والتصميم: رضوان عبدالهادي"
                 ) {
                     showAbout = true
                 }
