@@ -50,7 +50,7 @@ enum class OperationSoundPreset(
 
     companion object {
         fun fromStorage(value: String?): OperationSoundPreset =
-            entries.firstOrNull { it.storageValue == value } ?: POS_PREMIUM
+            entries.firstOrNull { it.storageValue == value } ?: CASH_REGISTER
     }
 }
 
