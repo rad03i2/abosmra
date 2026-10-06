@@ -4,7 +4,8 @@ import android.app.Activity
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Assessment
@@ -25,15 +26,17 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -159,7 +162,7 @@ fun GasLedgerApp(
 
     fun safeNavigate(route: String) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastNavigationAt < 500L) return
+        if (now - lastNavigationAt < 280L) return
         lastNavigationAt = now
         navController.navigate(route) {
             launchSingleTop = true
@@ -195,7 +198,7 @@ fun GasLedgerApp(
                                     selected = currentRoute == item.route,
                                     onClick = {
                                         val now = SystemClock.elapsedRealtime()
-                                        if (now - lastNavigationAt < 500L) return@NavigationBarItem
+                                        if (now - lastNavigationAt < 280L) return@NavigationBarItem
                                         lastNavigationAt = now
                                         navController.navigate(item.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
@@ -221,42 +224,68 @@ fun GasLedgerApp(
                     }
                 }
             ) { innerPadding ->
-                var horizontalDrag by remember(currentRoute) { mutableFloatStateOf(0f) }
+                val swipeThresholdPx = with(LocalDensity.current) { 52.dp.toPx() }
+
                 NavHost(
                     navController = navController,
                     startDestination = Routes.HOME,
                     modifier = Modifier
                         .padding(innerPadding)
-                        .pointerInput(currentRoute) {
+                        .pointerInput(currentRoute, swipeThresholdPx) {
                             if (currentRoute !in bottomRoutes) return@pointerInput
-                            detectHorizontalDragGestures(
-                                onDragStart = { horizontalDrag = 0f },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    horizontalDrag += dragAmount
-                                },
-                                onDragEnd = {
-                                    val index = bottomItems.indexOfFirst { it.route == currentRoute }
-                                    if (index >= 0 && kotlin.math.abs(horizontalDrag) > 120f) {
-                                        val target = if (horizontalDrag < 0f) {
+
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                var totalX = 0f
+                                var totalY = 0f
+                                var finished = false
+
+                                while (!finished) {
+                                    val event = awaitPointerEvent(PointerEventPass.Final)
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                        ?: break
+                                    val delta = change.positionChange()
+                                    totalX += delta.x
+                                    totalY += delta.y
+                                    finished = !change.pressed
+                                }
+
+                                val horizontalEnough =
+                                    kotlin.math.abs(totalX) >= swipeThresholdPx &&
+                                        kotlin.math.abs(totalX) >
+                                        kotlin.math.abs(totalY) * 1.35f
+
+                                if (horizontalEnough) {
+                                    val index = bottomItems.indexOfFirst {
+                                        it.route == currentRoute
+                                    }
+                                    if (index >= 0) {
+                                        // RTL: dragging right advances visually to the next tab.
+                                        val target = if (totalX > 0f) {
                                             (index + 1).coerceAtMost(bottomItems.lastIndex)
                                         } else {
                                             (index - 1).coerceAtLeast(0)
                                         }
                                         val route = bottomItems[target].route
                                         if (route != currentRoute) {
-                                            navController.navigate(route) {
-                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                    saveState = true
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (now - lastNavigationAt >= 280L) {
+                                                lastNavigationAt = now
+                                                navController.navigate(route) {
+                                                    popUpTo(
+                                                        navController.graph
+                                                            .findStartDestination().id
+                                                    ) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
                                                 }
-                                                launchSingleTop = true
-                                                restoreState = true
                                             }
                                         }
                                     }
-                                    horizontalDrag = 0f
-                                },
-                                onDragCancel = { horizontalDrag = 0f }
-                            )
+                                }
+                            }
                         }
                 ) {
                     composable(Routes.HOME) {

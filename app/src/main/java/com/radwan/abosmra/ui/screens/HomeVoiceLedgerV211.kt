@@ -66,6 +66,7 @@ import com.radwan.abosmra.speech.VoiceLedgerCommandParser
 import com.radwan.abosmra.speech.VoiceLedgerDraft
 import com.radwan.abosmra.speech.VoiceLedgerOperation
 import com.radwan.abosmra.speech.VoiceLedgerParseResult
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatMoney
 import kotlinx.coroutines.Dispatchers
@@ -656,7 +657,18 @@ private fun HomeVoiceConfirmationDialogV211(
                     ) {
                         customers.sortedBy { it.name }.forEach { customer ->
                             DropdownMenuItem(
-                                text = { Text(customer.name) },
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(9.dp)
+                                    ) {
+                                        CustomerAvatar(
+                                            customerId = customer.id,
+                                            size = 32.dp
+                                        )
+                                        Text(customer.name)
+                                    }
+                                },
                                 onClick = { onCustomerSelected(customer.id) }
                             )
                         }

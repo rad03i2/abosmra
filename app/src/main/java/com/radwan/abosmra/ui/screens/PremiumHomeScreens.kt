@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.Customer
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.CustomerCard
 import com.radwan.abosmra.ui.components.QuickActionCard
 import com.radwan.abosmra.ui.components.ScreenTopBar
@@ -205,16 +206,25 @@ fun HomeScreenV3(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            customer?.name ?: "زبون",
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            customer?.area.orEmpty(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (customer != null) {
+                            CustomerAvatar(
+                                customerId = customer.id,
+                                size = 34.dp
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f).padding(horizontal = 9.dp)
+                        ) {
+                            Text(
+                                customer?.name ?: "زبون",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                customer?.area.orEmpty(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     TransactionRow(entry, hideAmounts = security.hideAmounts)
                 }
@@ -748,15 +758,10 @@ private fun V3AccountHero(customer: Customer, balance: Long) {
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                    modifier = Modifier.size(50.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                    }
-                }
+                CustomerAvatar(
+                    customerId = customer.id,
+                    size = 50.dp
+                )
                 Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(customer.name, style = MaterialTheme.typography.titleLarge)
                     Text(

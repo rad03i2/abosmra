@@ -1,7 +1,5 @@
 package com.radwan.abosmra.ui.screens
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,10 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.EntryType
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.EmptyState
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
@@ -109,29 +107,6 @@ fun StatementScreenV7(
     var working by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
-    val savePdfLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                working = true
-                val result = runCatching {
-                    withContext(Dispatchers.IO) {
-                        context.contentResolver.openOutputStream(uri)?.use { output ->
-                            StatementDocumentRenderer.writePdf(snapshot, output)
-                        } ?: error("تعذر فتح الملف للحفظ.")
-                    }
-                }
-                working = false
-                statusMessage = if (result.isSuccess) {
-                    "تم حفظ كشف الحساب بصيغة PDF."
-                } else {
-                    "تعذر حفظ ملف PDF."
-                }
-            }
-        }
-    }
-
     fun shareImage(whatsappOnly: Boolean) {
         if (working) return
         if (whatsappOnly && customer.phone.isNullOrBlank()) {
@@ -166,22 +141,30 @@ fun StatementScreenV7(
         }
     }
 
-    fun sharePdf() {
+    fun shareMessages() {
         if (working) return
+        if (customer.phone.isNullOrBlank()) {
+            statusMessage = "لا يوجد رقم هاتف محفوظ لهذا الزبون لإرسال الكشف عبر الرسائل."
+            return
+        }
+
         scope.launch {
             working = true
             val result = runCatching {
                 val file = withContext(Dispatchers.IO) {
-                    StatementDocumentRenderer.createPdf(context, snapshot)
+                    StatementDocumentRenderer.createPng(context, snapshot)
                 }
-                StatementShare.sharePdf(
-                    context,
-                    file,
-                    StatementDocumentRenderer.message(snapshot)
+                StatementShare.shareImageToMessages(
+                    context = context,
+                    file = file,
+                    message = StatementDocumentRenderer.message(snapshot),
+                    phone = customer.phone.orEmpty()
                 )
             }
             working = false
-            if (result.isFailure) statusMessage = "تعذر تجهيز ملف PDF للمشاركة."
+            if (result.isFailure) {
+                statusMessage = "تعذر فتح تطبيق الرسائل أو تجهيز صورة كشف الحساب."
+            }
         }
     }
 
@@ -251,30 +234,24 @@ fun StatementScreenV7(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(13.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CustomerAvatar(
+                                customerId = customer.id,
+                                size = 50.dp
+                            )
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("دفتر الغاز", style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    "دفتر دين الغاز - ابو سمرة",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
                                 Text(
                                     "كشف حساب الدين • " + formatDate(snapshot.generatedAt),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
-                            Surface(
-                                shape = CircleShape,
-                                color = if (balance > 0) MaterialTheme.colorScheme.errorContainer
-                                else MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (balance > 0) Icons.Rounded.AccountBalanceWallet
-                                        else Icons.Rounded.CheckCircle,
-                                        contentDescription = null,
-                                        tint = if (balance > 0) DebtRed else PaidGreen,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
                             }
                         }
 
@@ -338,7 +315,7 @@ fun StatementScreenV7(
 
             item {
                 Text(
-                    "مشاركة وحفظ",
+                    "مشاركة كشف الحساب",
                     style = MaterialTheme.typography.titleLarge
                 )
             }
@@ -348,37 +325,21 @@ fun StatementScreenV7(
                     OutlinedButton(
                         onClick = { shareImage(false) },
                         enabled = !working,
-                        modifier = Modifier.weight(1f).height(52.dp),
+                        modifier = Modifier.weight(1f).height(54.dp),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Rounded.Image, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Image, null, modifier = Modifier.size(19.dp))
                         Text("مشاركة صورة", modifier = Modifier.padding(horizontal = 5.dp))
                     }
                     OutlinedButton(
-                        onClick = ::sharePdf,
-                        enabled = !working,
-                        modifier = Modifier.weight(1f).height(52.dp),
+                        onClick = ::shareMessages,
+                        enabled = !working && !customer.phone.isNullOrBlank(),
+                        modifier = Modifier.weight(1f).height(54.dp),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Rounded.PictureAsPdf, null, modifier = Modifier.size(18.dp))
-                        Text("مشاركة PDF", modifier = Modifier.padding(horizontal = 5.dp))
+                        Icon(Icons.Rounded.Sms, null, modifier = Modifier.size(19.dp))
+                        Text("رسالة SMS/MMS", modifier = Modifier.padding(horizontal = 5.dp))
                     }
-                }
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = {
-                        savePdfLauncher.launch(
-                            StatementDocumentRenderer.suggestedPdfName(snapshot)
-                        )
-                    },
-                    enabled = !working,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Icon(Icons.Rounded.Download, null, modifier = Modifier.size(18.dp))
-                    Text("حفظ PDF في الهاتف", modifier = Modifier.padding(horizontal = 6.dp))
                 }
             }
 

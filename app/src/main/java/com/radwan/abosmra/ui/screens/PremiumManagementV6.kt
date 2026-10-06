@@ -506,7 +506,13 @@ fun CustomerTransactionsScreenV6(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            StoredCustomerPhotoV211(
+                                customerId = customer.id,
+                                size = 46.dp
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f).padding(horizontal = 11.dp)
+                            ) {
                                 Text(customer.name, style = MaterialTheme.typography.titleLarge)
                                 Text(
                                     customer.area.ifBlank { "بدون منطقة" },
