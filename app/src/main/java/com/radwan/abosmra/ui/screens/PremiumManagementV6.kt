@@ -710,15 +710,10 @@ private fun V6AccountHero(customer: Customer, balance: Long, hideAmounts: Boolea
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                    modifier = Modifier.size(50.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Person, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
+                StoredCustomerPhotoV211(
+                    customerId = customer.id,
+                    size = 50.dp
+                )
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(customer.name, style = MaterialTheme.typography.titleLarge)
                     Text(
