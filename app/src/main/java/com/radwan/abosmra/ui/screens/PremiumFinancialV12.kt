@@ -74,6 +74,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.DebtAnomalyWarning
 import com.radwan.abosmra.data.DebtCreateResult
@@ -90,7 +93,6 @@ import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatMoney
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -122,6 +124,7 @@ fun AddDebtScreenV12(
     }
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
@@ -145,6 +148,8 @@ fun AddDebtScreenV12(
     var pendingDuplicateDraft by remember { mutableStateOf<DebtDraftV29?>(null) }
 
     var voiceListening by remember { mutableStateOf(false) }
+    var voicePreparing by remember { mutableStateOf(false) }
+    var voiceProcessing by remember { mutableStateOf(false) }
     var voiceTranscript by remember { mutableStateOf("") }
     var voiceFeedback by remember { mutableStateOf<String?>(null) }
     var voiceError by remember { mutableStateOf<String?>(null) }
@@ -187,30 +192,32 @@ fun AddDebtScreenV12(
         }
 
         voiceListening = false
+        voicePreparing = false
+        voiceProcessing = false
         speechRecognizer.cancel()
     }
 
     fun beginVoiceCapture() {
         if (voiceListening || isSaving || mode != DebtModeV12.AMOUNT) return
+        if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
 
         voiceTranscript = ""
         voiceFeedback = null
         voiceError = null
         voiceListening = true
+        voicePreparing = true
+        voiceProcessing = false
 
         val started = speechRecognizer.start(
             DebtSpeechRecognizer.Callbacks(
+                onPreparing = {
+                    voicePreparing = true
+                    voiceProcessing = false
+                },
+                onReady = { voicePreparing = false },
+                onEndOfSpeech = { voiceProcessing = true },
                 onPartial = { text ->
                     voiceTranscript = text
-                    if (ArabicDebtAmountParser.hasCurrencyEndMarker(text)) {
-                        when (val parsed = ArabicDebtAmountParser.parse(text)) {
-                            is SpeechAmountParseResult.Success ->
-                                applyVoiceResult(parsed, text)
-                            SpeechAmountParseResult.Ambiguous ->
-                                applyVoiceResult(parsed, text)
-                            SpeechAmountParseResult.NotFound -> Unit
-                        }
-                    }
                 },
                 onFinal = { alternatives ->
                     applyVoiceResult(
@@ -220,6 +227,8 @@ fun AddDebtScreenV12(
                 },
                 onError = { speechError ->
                     voiceListening = false
+                    voicePreparing = false
+                    voiceProcessing = false
                     voiceFeedback = null
                     voiceError = when (speechError) {
                         DebtSpeechError.PERMISSION ->
@@ -227,9 +236,23 @@ fun AddDebtScreenV12(
                         DebtSpeechError.BUSY ->
                             "الميكروفون مشغول حاليًا. حاول مرة أخرى."
                         DebtSpeechError.UNAVAILABLE ->
-                            "التعرف الصوتي غير متاح على هذا الهاتف."
-                        else ->
+                            "خدمة التعرف على الكلام غير متاحة. فعّل خدمة الإدخال الصوتي على الهاتف ثم أعد المحاولة."
+                        DebtSpeechError.START_FAILED ->
+                            "لم يبدأ الميكروفون بالاستماع. تحقق من خدمة الإدخال الصوتي وإذن الميكروفون ثم أعد المحاولة."
+                        DebtSpeechError.LANGUAGE ->
+                            "خدمة التعرف على الكلام لا تدعم العربية حاليًا. فعّل العربية في إعدادات الإدخال الصوتي."
+                        DebtSpeechError.NETWORK ->
+                            "تعذر الاتصال بخدمة التعرف على الكلام. تحقق من الإنترنت أو توفر العربية دون اتصال."
+                        DebtSpeechError.AUDIO ->
+                            "تعذر التقاط الصوت من الميكروفون. أغلق أي تطبيق يستخدمه ثم أعد المحاولة."
+                        DebtSpeechError.SERVER ->
+                            "خدمة التعرف على الكلام لم تستجب. أعد المحاولة."
+                        DebtSpeechError.TIMEOUT ->
+                            "انتهت مهلة الاستماع دون نتيجة. أعد المحاولة وانطق مبلغًا واحدًا بوضوح."
+                        DebtSpeechError.NO_MATCH ->
                             "لم أتمكن من تحديد المبلغ. أعد المحاولة أو أدخل المبلغ يدويًا."
+                        DebtSpeechError.OTHER ->
+                            "تعذر تشغيل التعرف على الكلام. أعد المحاولة أو أدخل المبلغ يدويًا."
                     }
                 }
             )
@@ -253,6 +276,8 @@ fun AddDebtScreenV12(
         if (voiceListening) {
             speechRecognizer.cancel()
             voiceListening = false
+            voicePreparing = false
+            voiceProcessing = false
             voiceError = null
             return
         }
@@ -269,23 +294,28 @@ fun AddDebtScreenV12(
         }
     }
 
-    DisposableEffect(speechRecognizer) {
-        onDispose { speechRecognizer.destroy() }
+    DisposableEffect(speechRecognizer, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                speechRecognizer.cancel()
+                voiceListening = false
+                voicePreparing = false
+                voiceProcessing = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            speechRecognizer.destroy()
+        }
     }
 
     LaunchedEffect(mode) {
         if (mode != DebtModeV12.AMOUNT && voiceListening) {
             speechRecognizer.cancel()
             voiceListening = false
-        }
-    }
-
-    LaunchedEffect(voiceListening, voiceTranscript) {
-        if (!voiceListening) return@LaunchedEffect
-        val snapshot = voiceTranscript
-        delay(if (snapshot.isBlank()) 8_000L else 3_000L)
-        if (voiceListening && voiceTranscript == snapshot) {
-            speechRecognizer.stopListening()
+            voicePreparing = false
+            voiceProcessing = false
         }
     }
 
@@ -539,6 +569,8 @@ fun AddDebtScreenV12(
                         ) {
                             V29VoiceStatus(
                                 listening = voiceListening,
+                                preparing = voicePreparing,
+                                processing = voiceProcessing,
                                 transcript = voiceTranscript,
                                 feedback = voiceFeedback,
                                 error = voiceError
