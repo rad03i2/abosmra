@@ -2,10 +2,13 @@ package com.radwan.abosmra.util
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.text.Layout
@@ -14,6 +17,7 @@ import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import androidx.core.content.res.ResourcesCompat
 import com.radwan.abosmra.R
+import com.radwan.abosmra.customer.CustomerPhotoStore
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
@@ -193,20 +197,61 @@ object StatementDocumentRenderer {
             surfacePaint
         )
 
+        val customerPhoto = CustomerPhotoStore(context)
+            .file(snapshot.customer.id)
+            ?.takeIf { it.isFile }
+            ?.let { file ->
+                runCatching {
+                    BitmapFactory.decodeFile(file.absolutePath)
+                }.getOrNull()
+            }
+
+        val customerTextX = if (customerPhoto != null) 270 else 104
+        val customerTextWidth = WIDTH - customerTextX - 104
+
+        customerPhoto?.let { photo ->
+            val photoBounds = RectF(
+                102f,
+                (customerTop + 44).toFloat(),
+                222f,
+                (customerTop + 164).toFloat()
+            )
+            val clip = Path().apply {
+                addOval(photoBounds, Path.Direction.CW)
+            }
+            canvas.save()
+            canvas.clipPath(clip)
+            canvas.drawBitmap(
+                photo,
+                null,
+                photoBounds,
+                Paint(Paint.ANTI_ALIAS_FLAG)
+            )
+            canvas.restore()
+
+            val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(218, 226, 222)
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+            }
+            canvas.drawOval(photoBounds, border)
+            photo.recycle()
+        }
+
         painter.text(
             value = "بيانات الزبون",
-            x = 104,
+            x = customerTextX,
             y = customerTop + 24,
-            width = WIDTH - 208,
+            width = customerTextWidth,
             size = 25f,
             color = gold,
             isBold = true
         )
         painter.text(
             value = snapshot.customer.name,
-            x = 104,
+            x = customerTextX,
             y = customerTop + 67,
-            width = WIDTH - 208,
+            width = customerTextWidth,
             size = 40f,
             color = ink,
             isBold = true
@@ -224,9 +269,9 @@ object StatementDocumentRenderer {
         if (contactLine.isNotBlank()) {
             painter.text(
                 value = contactLine,
-                x = 104,
+                x = customerTextX,
                 y = customerTop + 135,
-                width = WIDTH - 208,
+                width = customerTextWidth,
                 size = 28f,
                 color = muted
             )
