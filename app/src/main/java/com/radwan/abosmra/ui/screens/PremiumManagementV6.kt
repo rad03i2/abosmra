@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +72,7 @@ import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatDate
 import com.radwan.abosmra.util.formatMoney
 import com.radwan.abosmra.util.normalizeIraqPhone
+import kotlinx.coroutines.launch
 
 @Composable
 fun CustomerProfileScreenV6(
@@ -88,6 +90,7 @@ fun CustomerProfileScreenV6(
     val security by vm.securityState.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var showEdit by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
@@ -104,11 +107,13 @@ fun CustomerProfileScreenV6(
             hasMovements = entries.any { it.customerId == customer.id },
             onDismiss = { showEdit = false },
             onSave = { name, phone, area, address, openingDebt, notes ->
-                val result = vm.updateCustomer(
-                    customer.id, name, phone, area, address, openingDebt, notes
-                )
-                message = result.message
-                if (result.success) showEdit = false
+                scope.launch {
+                    val result = vm.updateCustomer(
+                        customer.id, name, phone, area, address, openingDebt, notes
+                    )
+                    message = result.message
+                    if (result.success) showEdit = false
+                }
             }
         )
     }
@@ -126,9 +131,11 @@ fun CustomerProfileScreenV6(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val result = vm.deleteCustomer(customer.id)
-                    showDelete = false
-                    if (result.success) onDeleted() else message = result.message
+                    scope.launch {
+                        val result = vm.deleteCustomer(customer.id)
+                        showDelete = false
+                        if (result.success) onDeleted() else message = result.message
+                    }
                 }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
@@ -384,6 +391,8 @@ fun CustomerTransactionsScreenV6(
         return
     }
 
+    val scope = rememberCoroutineScope()
+
     var filter by remember { mutableStateOf(MovementFilterV6.ALL) }
     var recentOnly by remember { mutableStateOf(false) }
     var editEntry by remember { mutableStateOf<LedgerEntry?>(null) }
@@ -427,9 +436,11 @@ fun CustomerTransactionsScreenV6(
             entry = entry,
             onDismiss = { editEntry = null },
             onSave = { amount, bottles, bottlePrice, details ->
-                val result = vm.updateEntry(entry.id, amount, bottles, bottlePrice, details)
-                message = result.message
-                if (result.success) editEntry = null
+                scope.launch {
+                    val result = vm.updateEntry(entry.id, amount, bottles, bottlePrice, details)
+                    message = result.message
+                    if (result.success) editEntry = null
+                }
             }
         )
     }
@@ -447,9 +458,11 @@ fun CustomerTransactionsScreenV6(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val result = vm.deleteEntry(entry.id)
-                    message = result.message
-                    if (result.success) deleteEntry = null
+                    scope.launch {
+                        val result = vm.deleteEntry(entry.id)
+                        message = result.message
+                        if (result.success) deleteEntry = null
+                    }
                 }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
