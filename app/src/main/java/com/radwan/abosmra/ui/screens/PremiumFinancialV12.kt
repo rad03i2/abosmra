@@ -92,6 +92,7 @@ fun AddDebtScreenV12(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
     val previousBalance = vm.balance(customer)
 
     var modeName by rememberSaveable { mutableStateOf(DebtModeV12.AMOUNT.name) }
@@ -141,6 +142,15 @@ fun AddDebtScreenV12(
             isSaving = false
             if (result.isSuccess) {
                 savedAmount = amount
+                sendFinancialFeedback(
+                    FinancialOperationReceipt(
+                        kind = FinancialOperationKind.DEBT,
+                        customerId = customer.id,
+                        customerName = customer.name,
+                        amount = amount,
+                        balanceAfter = previousBalance + amount
+                    )
+                )
             } else {
                 errorText = "تعذر حفظ الدين. حاول مرة أخرى."
             }
