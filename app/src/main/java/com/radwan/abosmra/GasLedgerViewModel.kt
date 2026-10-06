@@ -18,8 +18,11 @@ import com.radwan.abosmra.security.AppSecurityStore
 import com.radwan.abosmra.security.SecurityMutationResult
 import com.radwan.abosmra.security.SecurityState
 import com.radwan.abosmra.notifications.FinancialOperationFeedback
-import com.radwan.abosmra.notifications.FinancialOperationKind
 import com.radwan.abosmra.notifications.FinancialOperationReceipt
+import com.radwan.abosmra.notifications.FinancialFeedbackSettings
+import com.radwan.abosmra.notifications.FinancialFeedbackStore
+import com.radwan.abosmra.notifications.NotificationSoundPreset
+import com.radwan.abosmra.notifications.OperationSoundPreset
 import com.radwan.abosmra.notifications.ReminderFrequency
 import com.radwan.abosmra.notifications.ReminderScheduler
 import com.radwan.abosmra.notifications.ReminderSettings
@@ -43,6 +46,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val security = AppSecurityStore(application)
     private val reminders = ReminderStore(application)
     private val reportRepository = ReportRepository(application)
+    private val financialFeedback = FinancialFeedbackStore(application)
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
@@ -369,9 +373,32 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         ReminderScheduler.runNow(app)
     }
 
-    fun playFinancialSuccessSound(kind: FinancialOperationKind) {
+    fun financialFeedbackSettings(): FinancialFeedbackSettings =
+        financialFeedback.state()
+
+    fun setOperationSound(preset: OperationSoundPreset) {
+        financialFeedback.setOperationSound(preset)
+    }
+
+    fun setNotificationSound(preset: NotificationSoundPreset) {
+        financialFeedback.setNotificationSound(preset)
+    }
+
+    fun previewOperationSound(preset: OperationSoundPreset) {
         viewModelScope.launch(Dispatchers.Default) {
-            FinancialOperationFeedback.playComfortableMoneySound(kind)
+            FinancialOperationFeedback.playOperationSound(preset)
+        }
+    }
+
+    fun previewNotificationSound(preset: NotificationSoundPreset) {
+        viewModelScope.launch(Dispatchers.Default) {
+            FinancialOperationFeedback.playNotificationSound(preset)
+        }
+    }
+
+    fun playFinancialSuccessSound() {
+        viewModelScope.launch(Dispatchers.Default) {
+            FinancialOperationFeedback.playSelectedOperationSound(app)
         }
     }
 
@@ -379,7 +406,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         receipt: FinancialOperationReceipt,
         delayMillis: Long = 2_000L
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             delay(delayMillis.coerceAtLeast(0L))
             FinancialOperationFeedback.postNotification(app, receipt)
         }
