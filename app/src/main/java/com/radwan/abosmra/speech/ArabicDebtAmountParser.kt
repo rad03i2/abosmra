@@ -91,12 +91,8 @@ object ArabicDebtAmountParser {
     private val millionDualWords = setOf("مليونين", "مليونان")
 
     fun hasCurrencyEndMarker(text: String): Boolean {
-        val raw = text.trim()
-        val normalized = normalize(raw)
-        return normalized.contains("دينار عراقي") ||
-            normalized.contains("دينار") ||
-            raw.contains("د.ع") ||
-            normalized.contains("د ع")
+        val normalized = normalize(text).replace('.', ' ').trim()
+        return Regex("(^|\\s)(دينار(?: عراقي)?|د\\s*ع)$").containsMatchIn(normalized)
     }
 
     fun parseAlternatives(texts: List<String>): SpeechAmountParseResult {

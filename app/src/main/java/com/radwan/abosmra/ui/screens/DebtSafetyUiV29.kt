@@ -116,6 +116,8 @@ internal fun V29DebtMicrophoneButton(
 @Composable
 internal fun V29VoiceStatus(
     listening: Boolean,
+    preparing: Boolean = false,
+    processing: Boolean = false,
     transcript: String,
     feedback: String?,
     error: String?
@@ -145,7 +147,11 @@ internal fun V29VoiceStatus(
         ) {
             if (listening) {
                 Text(
-                    "جارٍ الاستماع...",
+                    when {
+                        preparing -> "جارٍ تجهيز الميكروفون..."
+                        processing -> "جارٍ تحديد المبلغ..."
+                        else -> "جارٍ الاستماع..."
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -154,7 +160,9 @@ internal fun V29VoiceStatus(
 
             if (transcript.isNotBlank()) {
                 Text(
-                    "سمعت: " + transcript,
+                    "سمعت: " + transcript.map { ch ->
+                        if (ch.isDigit()) Character.getNumericValue(ch).digitToChar() else ch
+                    }.joinToString(""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
