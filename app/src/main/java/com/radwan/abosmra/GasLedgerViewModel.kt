@@ -30,6 +30,9 @@ import com.radwan.abosmra.notifications.ReminderFrequency
 import com.radwan.abosmra.notifications.ReminderScheduler
 import com.radwan.abosmra.notifications.ReminderSettings
 import com.radwan.abosmra.notifications.ReminderStore
+import com.radwan.abosmra.ui.theme.AppFontPreset
+import com.radwan.abosmra.ui.theme.TypographyPreferences
+import com.radwan.abosmra.ui.theme.TypographySettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +54,11 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val reportRepository = ReportRepository(application)
     private val financialFeedback = FinancialFeedbackStore(application)
     private val customerPhotos = CustomerPhotoStore(application)
+    private val typographyPreferences = TypographyPreferences(application)
+
+    private val _typographySettings = MutableStateFlow(typographyPreferences.state())
+    val typographySettings: StateFlow<TypographySettings> =
+        _typographySettings.asStateFlow()
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
@@ -103,6 +111,18 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
                 rebuildIndexes()
             }
         }
+    }
+
+    fun setAppFont(font: AppFontPreset) {
+        _typographySettings.value = typographyPreferences.setFont(font)
+    }
+
+    fun setTextScale(scale: Float) {
+        _typographySettings.value = typographyPreferences.setScale(scale)
+    }
+
+    fun resetTypography() {
+        _typographySettings.value = typographyPreferences.reset()
     }
 
     fun customer(id: String): Customer? = _customers.value.firstOrNull { it.id == id }

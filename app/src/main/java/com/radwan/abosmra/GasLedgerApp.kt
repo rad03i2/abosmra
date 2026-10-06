@@ -112,6 +112,7 @@ fun GasLedgerApp(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val security by vm.securityState.collectAsStateWithLifecycle()
+    val typography by vm.typographySettings.collectAsStateWithLifecycle()
     val unlocked by vm.isUnlocked.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -181,7 +182,10 @@ fun GasLedgerApp(
         }
     }
 
-    GasLedgerTheme {
+    GasLedgerTheme(
+        font = typography.font,
+        textScale = typography.scale
+    ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             if (security.pinEnabled && !unlocked) {
                 AppLockScreenV9(vm)
