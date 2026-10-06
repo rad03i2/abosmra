@@ -159,8 +159,6 @@ object FinancialOperationFeedback {
         ensureChannel(context)
 
         val settings = FinancialFeedbackStore(context).state()
-        playNotificationSound(settings.notificationSound)
-
         val privacy = AppSecurityStore(context).state()
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -227,6 +225,7 @@ object FinancialOperationFeedback {
                 operationNotificationId(receipt),
                 notification
             )
+            playNotificationSound(settings.notificationSound)
         } catch (_: SecurityException) {
             // Permission can be revoked between the check and posting.
         }
