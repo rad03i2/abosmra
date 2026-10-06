@@ -24,8 +24,8 @@ internal object FeedbackSoundPlayer {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build())
                 current.setDataSource(app, soundResourceUri(app, resourceId))
-                current.setOnPreparedListener {
-                    if (player === it) runCatching { it.start() }.onFailure { release(it) }
+                current.setOnPreparedListener { prepared ->
+                    if (player === prepared) runCatching { prepared.start() }.onFailure { release(prepared) }
                 }
                 current.setOnCompletionListener { release(it) }
                 current.setOnErrorListener { failed, _, _ -> release(failed); true }
