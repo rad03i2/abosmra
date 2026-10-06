@@ -932,7 +932,8 @@ private fun V12AmountInput(
     helper: String,
     isError: Boolean,
     enabled: Boolean,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    trailingIcon: (@Composable () -> Unit)? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -940,6 +941,7 @@ private fun V12AmountInput(
         modifier = Modifier.fillMaxWidth(),
         label = { Text(label) },
         suffix = { Text("د.ع") },
+        trailingIcon = trailingIcon,
         enabled = enabled,
         singleLine = true,
         isError = isError,
