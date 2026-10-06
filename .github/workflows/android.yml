@@ -29,7 +29,7 @@ jobs:
           gradle-version: "9.6.0"
 
       - name: Run unit, Room and Compose tests
-        run: gradle :app:testReleaseUnitTest --stacktrace
+        run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Upload test reports
         if: always()
@@ -37,8 +37,8 @@ jobs:
         with:
           name: abosmra-test-reports
           path: |
-            app/build/reports/tests/testReleaseUnitTest/
-            app/build/test-results/testReleaseUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
           if-no-files-found: ignore
 
       - name: Build optimized release APK
