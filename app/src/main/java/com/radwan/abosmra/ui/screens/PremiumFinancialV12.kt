@@ -6,6 +6,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -29,19 +33,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocalShipping
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,17 +75,33 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
+import com.radwan.abosmra.data.DebtAnomalyWarning
+import com.radwan.abosmra.data.DebtCreateResult
 import com.radwan.abosmra.notifications.FinancialOperationFeedback
 import com.radwan.abosmra.notifications.FinancialOperationKind
 import com.radwan.abosmra.notifications.FinancialOperationReceipt
+import com.radwan.abosmra.speech.ArabicDebtAmountParser
+import com.radwan.abosmra.speech.DebtSpeechError
+import com.radwan.abosmra.speech.DebtSpeechRecognizer
+import com.radwan.abosmra.speech.SpeechAmountParseResult
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
 import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatMoney
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val MICROPHONE_PERMISSION_V29 = "android.permission." + "RECORD_AUDIO"
+
+private data class DebtDraftV29(
+    val amount: Long,
+    val bottles: Int?,
+    val bottlePrice: Long?,
+    val balanceBefore: Long
+)
 
 private enum class DebtModeV12(val label: String) {
     AMOUNT("مبلغ مباشر"),
