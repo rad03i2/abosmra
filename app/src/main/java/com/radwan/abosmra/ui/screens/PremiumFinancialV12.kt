@@ -1,5 +1,10 @@
 package com.radwan.abosmra.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -38,20 +43,26 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
+import com.radwan.abosmra.notifications.FinancialOperationFeedback
+import com.radwan.abosmra.notifications.FinancialOperationKind
+import com.radwan.abosmra.notifications.FinancialOperationReceipt
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
 import com.radwan.abosmra.ui.theme.DebtRed
@@ -81,6 +92,7 @@ fun AddDebtScreenV12(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
     val previousBalance = vm.balance(customer)
 
     var modeName by rememberSaveable { mutableStateOf(DebtModeV12.AMOUNT.name) }
@@ -130,6 +142,15 @@ fun AddDebtScreenV12(
             isSaving = false
             if (result.isSuccess) {
                 savedAmount = amount
+                sendFinancialFeedback(
+                    FinancialOperationReceipt(
+                        kind = FinancialOperationKind.DEBT,
+                        customerId = customer.id,
+                        customerName = customer.name,
+                        amount = amount,
+                        balanceAfter = previousBalance + amount
+                    )
+                )
             } else {
                 errorText = "تعذر حفظ الدين. حاول مرة أخرى."
             }
@@ -340,6 +361,7 @@ fun AddPaymentScreenV12(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
     val currentBalance = vm.balance(customer)
     var amountText by rememberSaveable { mutableStateOf("") }
     var isSaving by rememberSaveable { mutableStateOf(false) }
@@ -371,6 +393,19 @@ fun AddPaymentScreenV12(
             isSaving = false
             if (success) {
                 savedAmount = amount
+                sendFinancialFeedback(
+                    FinancialOperationReceipt(
+                        kind = if (amount == currentBalance) {
+                            FinancialOperationKind.FULL_SETTLEMENT
+                        } else {
+                            FinancialOperationKind.PAYMENT
+                        },
+                        customerId = customer.id,
+                        customerName = customer.name,
+                        amount = amount,
+                        balanceAfter = remaining
+                    )
+                )
             } else {
                 errorText = "تعذر تسجيل التحصيل. تحقق من الرصيد وحاول مرة أخرى."
             }
@@ -716,14 +751,76 @@ private fun V12SuccessDialog(
                 )
             }
         },
-        title = { Text(title) },
-        text = { Text(message) },
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(message)
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = PaidGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            "تم حفظ العملية بنجاح",
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            color = PaidGreen,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+        },
         confirmButton = {
             TextButton(onClick = onDone) {
                 Text("العودة للحساب")
             }
         }
     )
+}
+
+@Composable
+private fun rememberFinancialFeedbackHandler(
+    vm: GasLedgerViewModel
+): (FinancialOperationReceipt) -> Unit {
+    val context = LocalContext.current
+    var pendingNotification by remember {
+        mutableStateOf<FinancialOperationReceipt?>(null)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val receipt = pendingNotification
+        pendingNotification = null
+        if (granted && receipt != null) {
+            vm.scheduleFinancialOperationNotification(receipt)
+        }
+    }
+
+    return { receipt ->
+        vm.playFinancialSuccessSound(receipt.kind)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingNotification = receipt
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else if (FinancialOperationFeedback.canPostNotifications(context)) {
+            vm.scheduleFinancialOperationNotification(receipt)
+        }
+    }
 }
 
 @Composable
