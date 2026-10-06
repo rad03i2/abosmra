@@ -39,10 +39,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
+import com.radwan.abosmra.ui.screens.AddCustomerScreenV12
 import com.radwan.abosmra.ui.screens.AppLockScreenV9
-import com.radwan.abosmra.ui.screens.AddDebtScreenV3
-import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
+import com.radwan.abosmra.ui.screens.AddDebtScreenV12
+import com.radwan.abosmra.ui.screens.AddPaymentScreenV12
 import com.radwan.abosmra.ui.screens.AreasScreenV4
 import com.radwan.abosmra.ui.screens.CustomerProfileScreenV6
 import com.radwan.abosmra.ui.screens.CustomerTransactionsScreenV6
@@ -53,7 +53,8 @@ import com.radwan.abosmra.ui.screens.FollowUpScreenV4
 import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV11
 import com.radwan.abosmra.ui.screens.SettingsScreenV10
-import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
+import com.radwan.abosmra.ui.screens.SmartSearchScreenV12
+import com.radwan.abosmra.ui.screens.SearchIntentV12
 import com.radwan.abosmra.ui.screens.StatementScreenV7
 import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
 import com.radwan.abosmra.ui.theme.GasLedgerTheme
@@ -71,7 +72,7 @@ object Routes {
     const val DAILY_DEBTS = "daily_debts"
     const val TOP_DEBTORS = "top_debtors"
     const val AREAS = "areas"
-    const val SEARCH = "search"
+    const val SEARCH = "search?intent={intent}"
     const val REPORTS = "reports"
     const val FOLLOWUP = "followup"
     const val SETTINGS = "settings"
@@ -81,6 +82,7 @@ object Routes {
     fun addPayment(id: String) = "add_payment/$id"
     fun transactions(id: String) = "transactions/$id"
     fun statement(id: String) = "statement/$id"
+    fun search(intent: String = "open") = "search?intent=$intent"
 }
 
 private data class BottomDestination(
@@ -196,7 +198,9 @@ fun GasLedgerApp(
                             vm = vm,
                             onCustomers = { navController.navigate(Routes.CUSTOMERS) },
                             onAddCustomer = { navController.navigate(Routes.ADD_CUSTOMER) },
-                            onSearch = { navController.navigate(Routes.SEARCH) },
+                            onSearch = { navController.navigate(Routes.search("open")) { launchSingleTop = true } },
+                            onQuickDebt = { navController.navigate(Routes.search("debt")) { launchSingleTop = true } },
+                            onQuickPayment = { navController.navigate(Routes.search("payment")) { launchSingleTop = true } },
                             onCollections = { navController.navigate(Routes.COLLECTIONS) },
                             onDailyDebts = { navController.navigate(Routes.DAILY_DEBTS) },
                             onTopDebtors = { navController.navigate(Routes.TOP_DEBTORS) },
@@ -213,7 +217,7 @@ fun GasLedgerApp(
                         )
                     }
                     composable(Routes.ADD_CUSTOMER) {
-                        AddCustomerScreenV3(
+                        AddCustomerScreenV12(
                             vm = vm,
                             onBack = navController::popBackStack,
                             onSaved = { navController.navigate(Routes.customer(it)) {
@@ -247,14 +251,14 @@ fun GasLedgerApp(
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddDebtScreenV3(vm, id, navController::popBackStack)
+                        AddDebtScreenV12(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.ADD_PAYMENT,
                         arguments = listOf(navArgument("customerId") { type = NavType.StringType })
                     ) {
                         val id = it.arguments?.getString("customerId").orEmpty()
-                        AddPaymentScreenV3(vm, id, navController::popBackStack)
+                        AddPaymentScreenV12(vm, id, navController::popBackStack)
                     }
                     composable(
                         Routes.TRANSACTIONS,
@@ -282,13 +286,37 @@ fun GasLedgerApp(
                     composable(Routes.AREAS) {
                         AreasScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
-                    composable(Routes.SEARCH) {
-                        SmartSearchScreenV4(
-                            vm,
-                            navController::popBackStack,
-                            onCustomer = { navController.navigate(Routes.customer(it)) },
-                            onDebt = { navController.navigate(Routes.addDebt(it)) },
-                            onPayment = { navController.navigate(Routes.addPayment(it)) }
+                    composable(
+                        Routes.SEARCH,
+                        arguments = listOf(
+                            navArgument("intent") {
+                                type = NavType.StringType
+                                defaultValue = "open"
+                            }
+                        )
+                    ) {
+                        val intent = SearchIntentV12.fromRoute(
+                            it.arguments?.getString("intent")
+                        )
+                        SmartSearchScreenV12(
+                            vm = vm,
+                            intent = intent,
+                            onBack = navController::popBackStack,
+                            onCustomer = { id ->
+                                navController.navigate(Routes.customer(id)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onDebt = { id ->
+                                navController.navigate(Routes.addDebt(id)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onPayment = { id ->
+                                navController.navigate(Routes.addPayment(id)) {
+                                    launchSingleTop = true
+                                }
+                            }
                         )
                     }
                     composable(Routes.REPORTS) {
