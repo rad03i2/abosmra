@@ -13,6 +13,10 @@ import com.radwan.abosmra.data.MutationResult
 import com.radwan.abosmra.security.AppSecurityStore
 import com.radwan.abosmra.security.SecurityMutationResult
 import com.radwan.abosmra.security.SecurityState
+import com.radwan.abosmra.notifications.ReminderFrequency
+import com.radwan.abosmra.notifications.ReminderScheduler
+import com.radwan.abosmra.notifications.ReminderSettings
+import com.radwan.abosmra.notifications.ReminderStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,14 +25,19 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class GasLedgerViewModel(application: Application) : AndroidViewModel(application) {
+    private val app = application
     private val repository = AppRepository(application)
     private val security = AppSecurityStore(application)
+    private val reminders = ReminderStore(application)
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
 
     private val _isUnlocked = MutableStateFlow(!security.isPinEnabled())
     val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
+
+    private val _reminderSettings = MutableStateFlow(reminders.state())
+    val reminderSettings: StateFlow<ReminderSettings> = _reminderSettings.asStateFlow()
 
     private val _customers = MutableStateFlow(repository.customers())
     val customers: StateFlow<List<Customer>> = _customers.asStateFlow()
@@ -45,6 +54,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         rebuildIndexes()
+        ReminderScheduler.apply(app, _reminderSettings.value)
     }
 
     fun customer(id: String): Customer? = _customers.value.firstOrNull { it.id == id }
@@ -259,6 +269,32 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun refreshSecurityState() {
         _securityState.value = security.state()
+    }
+
+    fun setReminderEnabled(enabled: Boolean) {
+        reminders.setEnabled(enabled)
+        refreshReminderSettings()
+        ReminderScheduler.apply(app, _reminderSettings.value)
+    }
+
+    fun setReminderFrequency(frequency: ReminderFrequency) {
+        reminders.setFrequency(frequency)
+        refreshReminderSettings()
+        ReminderScheduler.apply(app, _reminderSettings.value)
+    }
+
+    fun setReminderMinimumAge(days: Int) {
+        reminders.setMinimumAgeDays(days)
+        refreshReminderSettings()
+        ReminderScheduler.apply(app, _reminderSettings.value)
+    }
+
+    fun runReminderCheckNow() {
+        ReminderScheduler.runNow(app)
+    }
+
+    fun refreshReminderSettings() {
+        _reminderSettings.value = reminders.state()
     }
 
     fun resetDemoData() {

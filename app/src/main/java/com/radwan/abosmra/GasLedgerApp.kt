@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -51,7 +52,7 @@ import com.radwan.abosmra.ui.screens.DailyDebtsScreenV4
 import com.radwan.abosmra.ui.screens.FollowUpScreenV4
 import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV3
-import com.radwan.abosmra.ui.screens.SettingsScreenV9
+import com.radwan.abosmra.ui.screens.SettingsScreenV10
 import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
 import com.radwan.abosmra.ui.screens.StatementScreenV7
 import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
@@ -89,7 +90,11 @@ private data class BottomDestination(
 )
 
 @Composable
-fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
+fun GasLedgerApp(
+    vm: GasLedgerViewModel = viewModel(),
+    notificationCustomerId: String? = null,
+    onNotificationHandled: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -97,6 +102,18 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
     val unlocked by vm.isUnlocked.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+
+    LaunchedEffect(notificationCustomerId, unlocked) {
+        val customerId = notificationCustomerId
+        if (unlocked && !customerId.isNullOrBlank()) {
+            if (vm.customer(customerId) != null) {
+                navController.navigate(Routes.customer(customerId)) {
+                    launchSingleTop = true
+                }
+            }
+            onNotificationHandled()
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -281,7 +298,7 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         FollowUpScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SETTINGS) {
-                        SettingsScreenV9(vm)
+                        SettingsScreenV10(vm)
                     }
                 }
             }

@@ -67,7 +67,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun SettingsScreenV9(vm: GasLedgerViewModel) {
+fun SettingsScreenV10(vm: GasLedgerViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val customers by vm.customers.collectAsStateWithLifecycle()
@@ -408,6 +408,9 @@ fun SettingsScreenV9(vm: GasLedgerViewModel) {
                     "الدينار العراقي • د.ع"
                 ) { }
             }
+            item { SectionTitle("المتابعة الذكية") }
+            item { SmartReminderSettingsCardV10(vm) }
+
             item { SectionTitle("الخصوصية والأمان") }
             item { SecuritySettingsCardV9(vm) }
 
@@ -432,7 +435,7 @@ fun SettingsScreenV9(vm: GasLedgerViewModel) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp)) {
                             Text("دفتر الغاز", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "الإصدار 1.9.0 • الخصوصية والأمان",
+                                "الإصدار 2.0.0 • المتابعة الذكية",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
