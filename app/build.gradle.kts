@@ -12,8 +12,8 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 17
-        versionName = "2.6.0-rc1"
+        versionCode = 18
+        versionName = "2.6.0"
     }
 
     buildFeatures {
@@ -23,8 +23,8 @@ android {
 
     buildTypes {
         release {
-            // Testing release: optimized like production, signed with the debug key so it
-            // can be installed directly on the phone. Replace before store publishing.
+            // Stable direct-install build: optimized with R8/resource shrinking and signed
+            // with the debug key for sideloading. A private production keystore is required for store publishing.
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
