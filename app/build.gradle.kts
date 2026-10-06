@@ -12,8 +12,8 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 15
-        versionName = "2.4.0"
+        versionCode = 16
+        versionName = "2.5.0"
     }
 
     buildFeatures {
@@ -51,6 +51,7 @@ dependencies {
 
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
@@ -75,7 +76,6 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    testImplementation("androidx.sqlite:sqlite-bundled:2.7.1")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.test:core-ktx:1.7.0")
     testImplementation(composeBom)

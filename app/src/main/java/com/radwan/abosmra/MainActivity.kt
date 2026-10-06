@@ -7,10 +7,12 @@ import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : FragmentActivity() {
     private val notificationCustomerId = mutableStateOf<String?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG) {
             StrictMode.setThreadPolicy(
