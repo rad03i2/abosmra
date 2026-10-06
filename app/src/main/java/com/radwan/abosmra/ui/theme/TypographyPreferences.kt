@@ -1,6 +1,7 @@
 package com.radwan.abosmra.ui.theme
 
 import android.content.Context
+import kotlin.math.roundToInt
 
 enum class AppFontPreset(
     val storageKey: String,
@@ -70,14 +71,14 @@ class TypographyPreferences(context: Context) {
     }
 
     fun setScale(scale: Float): TypographySettings {
-        val normalized = (scale * 20f).toInt() / 20f
-        prefs.edit().putFloat(
-            KEY_SCALE,
-            normalized.coerceIn(
+        val normalized = ((scale * 20f).roundToInt() / 20f)
+            .coerceIn(
                 TypographySettings.MIN_TEXT_SCALE,
                 TypographySettings.MAX_TEXT_SCALE
             )
-        ).apply()
+        if (prefs.getFloat(KEY_SCALE, TypographySettings.DEFAULT_TEXT_SCALE) != normalized) {
+            prefs.edit().putFloat(KEY_SCALE, normalized).apply()
+        }
         return state()
     }
 
