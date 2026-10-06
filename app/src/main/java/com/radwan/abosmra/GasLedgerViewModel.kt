@@ -2,6 +2,7 @@ package com.radwan.abosmra
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.radwan.abosmra.data.AppRepository
 import com.radwan.abosmra.data.AutoBackupInterval
 import com.radwan.abosmra.data.BackupPreview
@@ -10,6 +11,9 @@ import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
 import com.radwan.abosmra.data.MutationResult
+import com.radwan.abosmra.data.AdvancedReportSnapshot
+import com.radwan.abosmra.data.ReportPeriodV11
+import com.radwan.abosmra.data.ReportRepository
 import com.radwan.abosmra.security.AppSecurityStore
 import com.radwan.abosmra.security.SecurityMutationResult
 import com.radwan.abosmra.security.SecurityState
@@ -20,6 +24,7 @@ import com.radwan.abosmra.notifications.ReminderStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -29,6 +34,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val repository = AppRepository(application)
     private val security = AppSecurityStore(application)
     private val reminders = ReminderStore(application)
+    private val reportRepository = ReportRepository(application)
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
@@ -38,6 +44,11 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _reminderSettings = MutableStateFlow(reminders.state())
     val reminderSettings: StateFlow<ReminderSettings> = _reminderSettings.asStateFlow()
+
+    private val _advancedReport = MutableStateFlow(
+        AdvancedReportSnapshot(period = ReportPeriodV11.MONTH, loading = true)
+    )
+    val advancedReport: StateFlow<AdvancedReportSnapshot> = _advancedReport.asStateFlow()
 
     private val _customers = MutableStateFlow(repository.customers())
     val customers: StateFlow<List<Customer>> = _customers.asStateFlow()
@@ -55,6 +66,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         rebuildIndexes()
         ReminderScheduler.apply(app, _reminderSettings.value)
+        loadAdvancedReport(ReportPeriodV11.MONTH)
     }
 
     fun customer(id: String): Customer? = _customers.value.firstOrNull { it.id == id }
@@ -297,6 +309,24 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         _reminderSettings.value = reminders.state()
     }
 
+    fun loadAdvancedReport(period: ReportPeriodV11) {
+        _advancedReport.value = _advancedReport.value.copy(
+            period = period,
+            loading = true,
+            errorMessage = null
+        )
+        viewModelScope.launch {
+            val result = runCatching { reportRepository.load(period) }
+            _advancedReport.value = result.getOrElse {
+                _advancedReport.value.copy(
+                    period = period,
+                    loading = false,
+                    errorMessage = "تعذر تحميل التقرير. حاول مرة أخرى."
+                )
+            }
+        }
+    }
+
     fun resetDemoData() {
         repository.resetDemoData()
         refresh()
@@ -306,6 +336,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         _customers.value = repository.customers()
         _entries.value = repository.entries()
         rebuildIndexes()
+        loadAdvancedReport(_advancedReport.value.period)
     }
 
     private fun rebuildIndexes() {
