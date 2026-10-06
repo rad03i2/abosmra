@@ -108,7 +108,7 @@ private val NotoKufiArabicFontFamily = FontFamily(
     Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.ExtraBold)
 )
 
-private fun fontFamilyFor(font: ArabicFontPreset): FontFamily =
+internal fun fontFamilyFor(font: ArabicFontPreset): FontFamily =
     when (font) {
         ArabicFontPreset.CAIRO -> CairoFontFamily
         ArabicFontPreset.TAJAWAL -> TajawalFontFamily
