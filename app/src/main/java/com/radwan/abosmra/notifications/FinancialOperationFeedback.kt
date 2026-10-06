@@ -169,7 +169,11 @@ object FinancialOperationFeedback {
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(nextNotificationId(), notification) }
+        try {
+            NotificationManagerCompat.from(context).notify(nextNotificationId(), notification)
+        } catch (_: SecurityException) {
+            // The system permission may change while the test notification is being built.
+        }
     }
 
     fun playSelectedOperationSound(context: Context) {
