@@ -12,8 +12,8 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 12
-        versionName = "2.1.0"
+        versionCode = 13
+        versionName = "2.2.0"
     }
 
     buildFeatures {

@@ -88,6 +88,8 @@ fun HomeScreenV3(
     onCustomers: () -> Unit,
     onAddCustomer: () -> Unit,
     onSearch: () -> Unit,
+    onQuickDebt: () -> Unit,
+    onQuickPayment: () -> Unit,
     onCollections: () -> Unit,
     onDailyDebts: () -> Unit,
     onTopDebtors: () -> Unit,
@@ -118,8 +120,8 @@ fun HomeScreenV3(
                 debtors = vm.indebtedCustomersCount(),
                 collections = vm.todayCollections(),
                 hideAmounts = security.hideAmounts,
-                onDebt = onSearch,
-                onPayment = onSearch
+                onDebt = onQuickDebt,
+                onPayment = onQuickPayment
             )
         }
         item { V3Search(onSearch) }
@@ -290,7 +292,7 @@ private fun V3HeroAction(
     modifier: Modifier
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.height(52.dp).clickable(onClick = onClick),
         shape = CircleShape,
         color = if (filled) Color.White else Color.White.copy(alpha = 0.12f),
         border = if (filled) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
@@ -319,7 +321,7 @@ private fun V3HeroAction(
 @Composable
 private fun V3Search(onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().height(52.dp).clickable(onClick = onClick),
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
