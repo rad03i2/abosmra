@@ -361,6 +361,7 @@ fun AddPaymentScreenV12(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
     val currentBalance = vm.balance(customer)
     var amountText by rememberSaveable { mutableStateOf("") }
     var isSaving by rememberSaveable { mutableStateOf(false) }
@@ -392,6 +393,19 @@ fun AddPaymentScreenV12(
             isSaving = false
             if (success) {
                 savedAmount = amount
+                sendFinancialFeedback(
+                    FinancialOperationReceipt(
+                        kind = if (amount == currentBalance) {
+                            FinancialOperationKind.FULL_SETTLEMENT
+                        } else {
+                            FinancialOperationKind.PAYMENT
+                        },
+                        customerId = customer.id,
+                        customerName = customer.name,
+                        amount = amount,
+                        balanceAfter = remaining
+                    )
+                )
             } else {
                 errorText = "تعذر تسجيل التحصيل. تحقق من الرصيد وحاول مرة أخرى."
             }
