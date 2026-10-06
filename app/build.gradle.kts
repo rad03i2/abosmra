@@ -12,8 +12,8 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 23
-        versionName = "2.10.0"
+        versionCode = 24
+        versionName = "2.11.0"
         manifestPlaceholders["debtVoicePermission"] =
             "android.permission." + "RECORD_AUDIO"
     }
