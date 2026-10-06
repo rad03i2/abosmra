@@ -80,6 +80,7 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
     var pendingRestoreRaw by remember { mutableStateOf<String?>(null) }
     var pendingPreview by remember { mutableStateOf<BackupPreview?>(null) }
     var showResetConfirm by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
 
     val createBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -226,6 +227,10 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                 TextButton(onClick = { showResetConfirm = false }) { Text("إلغاء") }
             }
         )
+    }
+
+    if (showAbout) {
+        AboutDialogV15(onDismiss = { showAbout = false })
     }
 
     message?.let { currentMessage ->
@@ -423,30 +428,12 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
             item { SectionTitle("حول") }
 
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                V8SettingsRow(
+                    Icons.Rounded.Info,
+                    "حول دفتر الغاز",
+                    "الإصدار 2.5.0 • التطوير والتصميم: رضوان عبدالهادي"
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Rounded.Info,
-                            null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Column(modifier = Modifier.padding(horizontal = 10.dp)) {
-                            Text("دفتر الغاز", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "الإصدار 2.4.0 • اختبارات تلقائية",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    showAbout = true
                 }
             }
 
