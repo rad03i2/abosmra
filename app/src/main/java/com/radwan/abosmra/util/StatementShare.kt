@@ -13,7 +13,27 @@ object StatementShare {
         message: String,
         whatsappOnly: Boolean
     ) {
-        shareFile(context, file, "image/png", message, whatsappOnly)
+        shareFile(context, file, "image/png", message, whatsappOnly, null)
+    }
+
+    fun shareImageToWhatsappContact(
+        context: Context,
+        file: File,
+        message: String,
+        phone: String
+    ) {
+        val normalized = normalizeIraqPhone(phone)
+            .filter(Char::isDigit)
+            .removePrefix("00")
+        require(normalized.isNotBlank()) { "رقم الهاتف غير صالح." }
+        shareFile(
+            context = context,
+            file = file,
+            mimeType = "image/png",
+            message = message,
+            whatsappOnly = true,
+            whatsappJid = normalized + "@s.whatsapp.net"
+        )
     }
 
     fun sharePdf(
@@ -21,7 +41,7 @@ object StatementShare {
         file: File,
         message: String
     ) {
-        shareFile(context, file, "application/pdf", message, false)
+        shareFile(context, file, "application/pdf", message, false, null)
     }
 
     private fun shareFile(
@@ -29,7 +49,8 @@ object StatementShare {
         file: File,
         mimeType: String,
         message: String,
-        whatsappOnly: Boolean
+        whatsappOnly: Boolean,
+        whatsappJid: String?
     ) {
         val uri = FileProvider.getUriForFile(
             context,
@@ -37,30 +58,37 @@ object StatementShare {
             file
         )
 
-        fun buildIntent(targetWhatsapp: Boolean): Intent =
+        fun buildIntent(packageName: String? = null): Intent =
             Intent(Intent.ACTION_SEND).apply {
                 type = mimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_TEXT, message)
                 clipData = ClipData.newRawUri("statement", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                if (targetWhatsapp) setPackage("com.whatsapp")
+                packageName?.let(::setPackage)
+                whatsappJid?.let { putExtra("jid", it) }
             }
 
         if (whatsappOnly) {
-            runCatching { context.startActivity(buildIntent(true)) }
-                .onFailure {
-                    context.startActivity(
-                        Intent.createChooser(
-                            buildIntent(false),
-                            "مشاركة كشف الحساب"
-                        )
+            val packages = listOf("com.whatsapp", "com.whatsapp.w4b")
+            val launched = packages.any { packageName ->
+                runCatching {
+                    context.startActivity(buildIntent(packageName))
+                    true
+                }.getOrDefault(false)
+            }
+            if (!launched) {
+                context.startActivity(
+                    Intent.createChooser(
+                        buildIntent(),
+                        "مشاركة كشف الحساب"
                     )
-                }
+                )
+            }
         } else {
             context.startActivity(
                 Intent.createChooser(
-                    buildIntent(false),
+                    buildIntent(),
                     "مشاركة كشف الحساب"
                 )
             )
