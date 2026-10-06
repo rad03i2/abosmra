@@ -3,7 +3,10 @@ package com.radwan.abosmra.data
 import android.content.Context
 import com.radwan.abosmra.BuildConfig
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -17,15 +20,31 @@ class AppRepository(context: Context) {
     private var customersCache: MutableList<Customer> = mutableListOf()
     private var entriesCache: MutableList<LedgerEntry> = mutableListOf()
 
-    init {
+    suspend fun initialize() {
         loadRoomOrMigrateLegacy()
         maybeCreateAutomaticBackup()
     }
 
+    fun observeCustomers(): Flow<List<Customer>> =
+        dao.observeCustomers()
+            .map { rows ->
+                rows.map(CustomerEntity::toModel)
+                    .also { customersCache = it.toMutableList() }
+            }
+            .distinctUntilChanged()
+
+    fun observeEntries(): Flow<List<LedgerEntry>> =
+        dao.observeEntries()
+            .map { rows ->
+                rows.map(LedgerEntryEntity::toModel)
+                    .also { entriesCache = it.toMutableList() }
+            }
+            .distinctUntilChanged()
+
     fun customers(): List<Customer> = customersCache.toList()
     fun entries(): List<LedgerEntry> = entriesCache.toList()
 
-    fun addCustomer(
+    suspend fun addCustomer(
         name: String,
         phone: String?,
         area: String,
@@ -42,13 +61,13 @@ class AppRepository(context: Context) {
             openingDebt = openingDebt.coerceAtLeast(0L),
             notes = notes.trim()
         )
-        dbCall { dao.insertCustomer(customer.toEntity()) }
+        dao.insertCustomer(customer.toEntity())
         customersCache.add(0, customer)
         maybeCreateAutomaticBackup()
         return customer
     }
 
-    fun updateCustomer(
+    suspend fun updateCustomer(
         customerId: String,
         name: String,
         phone: String?,
@@ -79,13 +98,13 @@ class AppRepository(context: Context) {
             )
         }
 
-        dbCall { dao.updateCustomer(updated.toEntity()) }
+        dao.updateCustomer(updated.toEntity())
         customersCache = customersCache.map { if (it.id == customerId) updated else it }.toMutableList()
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تحديث بيانات الزبون.")
     }
 
-    fun deleteCustomer(customerId: String): MutationResult {
+    suspend fun deleteCustomer(customerId: String): MutationResult {
         val customer = customersCache.firstOrNull { it.id == customerId }
             ?: return MutationResult(false, "تعذر العثور على الزبون.")
         val customerEntries = entriesCache.filter { it.customerId == customerId }
@@ -97,13 +116,13 @@ class AppRepository(context: Context) {
             return MutationResult(false, "لا يمكن حذف الزبون لأن لديه حركات مالية محفوظة.")
         }
 
-        dbCall { dao.deleteCustomerById(customerId) }
+        dao.deleteCustomerById(customerId)
         customersCache.removeAll { it.id == customerId }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الزبون.")
     }
 
-    fun addDebt(
+    suspend fun addDebt(
         customerId: String,
         amount: Long,
         bottles: Int?,
@@ -122,13 +141,13 @@ class AppRepository(context: Context) {
             bottlePrice = bottlePrice,
             details = details
         )
-        dbCall { dao.insertEntry(entry.toEntity()) }
+        dao.insertEntry(entry.toEntity())
         entriesCache.add(0, entry)
         maybeCreateAutomaticBackup()
         return entry
     }
 
-    fun addPayment(customerId: String, amount: Long): LedgerEntry {
+    suspend fun addPayment(customerId: String, amount: Long): LedgerEntry {
         val customer = customersCache.first { it.id == customerId }
         val balance = customerBalance(customer, entriesCache)
         require(amount in 1..balance) { "Payment must be within current balance" }
@@ -145,7 +164,7 @@ class AppRepository(context: Context) {
         return entry
     }
 
-    fun updateEntry(
+    suspend fun updateEntry(
         entryId: String,
         amount: Long,
         bottles: Int?,
@@ -177,13 +196,13 @@ class AppRepository(context: Context) {
             )
         }
 
-        dbCall { dao.updateEntry(updated.toEntity()) }
+        dao.updateEntry(updated.toEntity())
         entriesCache = entriesCache.map { if (it.id == entryId) updated else it }.toMutableList()
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تعديل الحركة.")
     }
 
-    fun deleteEntry(entryId: String): MutationResult {
+    suspend fun deleteEntry(entryId: String): MutationResult {
         val current = entriesCache.firstOrNull { it.id == entryId }
             ?: return MutationResult(false, "تعذر العثور على الحركة.")
         val customer = customersCache.firstOrNull { it.id == current.customerId }
@@ -199,20 +218,18 @@ class AppRepository(context: Context) {
             )
         }
 
-        dbCall { dao.deleteEntryById(entryId) }
+        dao.deleteEntryById(entryId)
         entriesCache.removeAll { it.id == entryId }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الحركة.")
     }
 
-    fun resetDemoData() {
+    suspend fun resetDemoData() {
         val (customers, entries) = demoData()
-        dbCall {
-            dao.replaceAll(
-                customers = customers.map(Customer::toEntity),
-                entries = entries.map(LedgerEntry::toEntity)
-            )
-        }
+        dao.replaceAll(
+            customers = customers.map(Customer::toEntity),
+            entries = entries.map(LedgerEntry::toEntity)
+        )
         customersCache = customers.toMutableList()
         entriesCache = entries.toMutableList()
         prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
@@ -231,19 +248,17 @@ class AppRepository(context: Context) {
     fun previewBackup(raw: String): BackupPreview =
         BackupValidator.preview(raw)
 
-    fun restoreBackup(raw: String): BackupRestoreResult {
+    suspend fun restoreBackup(raw: String): BackupRestoreResult {
         return runCatching {
             val payload = BackupValidator.parseValid(raw)
 
             // Always protect the current state before replacing it.
             writeRecoveryBackup(createBackupJson())
 
-            dbCall {
-                dao.replaceAll(
-                    customers = payload.customers.map(Customer::toEntity),
-                    entries = payload.entries.map(LedgerEntry::toEntity)
-                )
-            }
+            dao.replaceAll(
+                customers = payload.customers.map(Customer::toEntity),
+                entries = payload.entries.map(LedgerEntry::toEntity)
+            )
 
             customersCache = payload.customers.toMutableList()
             entriesCache = payload.entries.toMutableList()
@@ -283,14 +298,14 @@ class AppRepository(context: Context) {
             prefs.getString(AUTO_BACKUP_INTERVAL_KEY, AutoBackupInterval.WEEKLY.storageValue)
         )
 
-    fun setAutoBackupInterval(interval: AutoBackupInterval) {
+    suspend fun setAutoBackupInterval(interval: AutoBackupInterval) {
         prefs.edit()
             .putString(AUTO_BACKUP_INTERVAL_KEY, interval.storageValue)
             .apply()
         maybeCreateAutomaticBackup(force = interval != AutoBackupInterval.OFF)
     }
 
-    private fun maybeCreateAutomaticBackup(force: Boolean = false) {
+    private suspend fun maybeCreateAutomaticBackup(force: Boolean = false) {
         val interval = autoBackupInterval()
         if (interval == AutoBackupInterval.OFF) return
 
@@ -305,19 +320,23 @@ class AppRepository(context: Context) {
         if (!force && last > 0L && now - last < dueAfter) return
 
         runCatching {
-            val dir = File(appContext.filesDir, "auto_backups").apply { mkdirs() }
-            val file = File(dir, "auto-backup-" + now + ".json")
-            file.writeText(createBackupJson())
-            trimBackupDirectory(dir, keep = 7)
-            prefs.edit().putLong(LAST_AUTO_BACKUP_AT_KEY, now).apply()
+            withContext(Dispatchers.IO) {
+                val dir = File(appContext.filesDir, "auto_backups").apply { mkdirs() }
+                val file = File(dir, "auto-backup-" + now + ".json")
+                file.writeText(createBackupJson())
+                trimBackupDirectory(dir, keep = 7)
+                prefs.edit().putLong(LAST_AUTO_BACKUP_AT_KEY, now).apply()
+            }
         }
     }
 
-    private fun writeRecoveryBackup(raw: String) {
+    private suspend fun writeRecoveryBackup(raw: String) {
         val now = System.currentTimeMillis()
-        val dir = File(appContext.filesDir, "restore_recovery").apply { mkdirs() }
-        File(dir, "before-restore-" + now + ".json").writeText(raw)
-        trimBackupDirectory(dir, keep = 5)
+        withContext(Dispatchers.IO) {
+            val dir = File(appContext.filesDir, "restore_recovery").apply { mkdirs() }
+            File(dir, "before-restore-" + now + ".json").writeText(raw)
+            trimBackupDirectory(dir, keep = 5)
+        }
     }
 
     private fun trimBackupDirectory(dir: File, keep: Int) {
@@ -337,50 +356,46 @@ class AppRepository(context: Context) {
         return true
     }
 
-    private fun loadRoomOrMigrateLegacy() {
-        dbCall {
-            val dbCustomers = dao.getCustomers().map(CustomerEntity::toModel)
-            val dbEntries = dao.getEntries().map(LedgerEntryEntity::toModel)
-            val alreadyInitialized = prefs.getBoolean(ROOM_INITIALIZED_KEY, false)
+    private suspend fun loadRoomOrMigrateLegacy() {
+        val dbCustomers = dao.getCustomers().map(CustomerEntity::toModel)
+        val dbEntries = dao.getEntries().map(LedgerEntryEntity::toModel)
+        val alreadyInitialized = prefs.getBoolean(ROOM_INITIALIZED_KEY, false)
 
-            if (dbCustomers.isNotEmpty() || dbEntries.isNotEmpty()) {
-                customersCache = dbCustomers.toMutableList()
-                entriesCache = dbEntries.toMutableList()
-                if (!alreadyInitialized) {
-                    prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).commit()
-                }
-                return@dbCall
+        if (dbCustomers.isNotEmpty() || dbEntries.isNotEmpty()) {
+            customersCache = dbCustomers.toMutableList()
+            entriesCache = dbEntries.toMutableList()
+            if (!alreadyInitialized) {
+                prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
             }
-
-            if (alreadyInitialized) {
-                customersCache = mutableListOf()
-                entriesCache = mutableListOf()
-                return@dbCall
-            }
-
-            val legacyCustomers = parseCustomers(prefs.getString("customers", null))
-            val knownCustomerIds = legacyCustomers.mapTo(hashSetOf()) { it.id }
-            val legacyEntries = parseEntries(prefs.getString("entries", null))
-                .filter { it.customerId in knownCustomerIds }
-
-            val source = if (legacyCustomers.isNotEmpty()) {
-                legacyCustomers to legacyEntries
-            } else {
-                demoData()
-            }
-
-            dao.replaceAll(
-                customers = source.first.map(Customer::toEntity),
-                entries = source.second.map(LedgerEntry::toEntity)
-            )
-            customersCache = source.first.toMutableList()
-            entriesCache = source.second.toMutableList()
-            prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).commit()
+            return
         }
+
+        if (alreadyInitialized) {
+            customersCache = mutableListOf()
+            entriesCache = mutableListOf()
+            return
+        }
+
+        val legacyCustomers = parseCustomers(prefs.getString("customers", null))
+        val knownCustomerIds = legacyCustomers.mapTo(hashSetOf()) { it.id }
+        val legacyEntries = parseEntries(prefs.getString("entries", null))
+            .filter { it.customerId in knownCustomerIds }
+
+        val source = if (legacyCustomers.isNotEmpty()) {
+            legacyCustomers to legacyEntries
+        } else {
+            demoData()
+        }
+
+        dao.replaceAll(
+            customers = source.first.map(Customer::toEntity),
+            entries = source.second.map(LedgerEntry::toEntity)
+        )
+        customersCache = source.first.toMutableList()
+        entriesCache = source.second.toMutableList()
+        prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
     }
 
-    private fun <T> dbCall(block: suspend () -> T): T =
-        runBlocking(Dispatchers.IO) { block() }
 
     private fun customersToJson(): JSONArray = JSONArray().apply {
         customersCache.forEach { customer ->
