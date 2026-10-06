@@ -1,9 +1,7 @@
 package com.radwan.abosmra.data
 
-import android.content.Context
 import androidx.room3.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -11,20 +9,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
 class GasLedgerDaoTest {
     private lateinit var db: GasLedgerDatabase
     private lateinit var dao: GasLedgerDao
 
     @Before
     fun createDatabase() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder<GasLedgerDatabase>(context)
+        db = Room.inMemoryDatabaseBuilder<GasLedgerDatabase>()
             .setDriver(BundledSQLiteDriver())
             .build()
         dao = db.dao()
