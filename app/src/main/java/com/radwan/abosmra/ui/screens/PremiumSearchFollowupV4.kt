@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.Customer
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.CustomerCard
 import com.radwan.abosmra.ui.components.EmptyState
 import com.radwan.abosmra.ui.components.ScreenTopBar
@@ -221,11 +222,28 @@ fun FollowUpScreenV4(
                     ) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(customer.name, style = MaterialTheme.typography.titleMedium)
-                                    Text(customer.area.ifBlank { "بدون منطقة" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                CustomerAvatar(
+                                    customerId = customer.id,
+                                    size = 44.dp
+                                )
+                                Column(
+                                    Modifier.weight(1f).padding(horizontal = 10.dp)
+                                ) {
+                                    Text(
+                                        customer.name,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        customer.area.ifBlank { "بدون منطقة" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Text(formatMoney(vm.balance(customer)), color = DebtRed, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    formatMoney(vm.balance(customer)),
+                                    color = DebtRed,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
                             }
                             Text(
                                 "آخر دفعة: " + (lastPayment?.let { formatDate(it.createdAt) + " • " + formatMoney(it.amount) } ?: "لا توجد"),
