@@ -97,6 +97,7 @@ fun HomeScreenV3(
 ) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val security by vm.securityState.collectAsStateWithLifecycle()
     val today = remember {
         val day = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE", Locale("ar", "IQ")))
         day + " • " + formatDate(System.currentTimeMillis())
@@ -116,6 +117,7 @@ fun HomeScreenV3(
                 totalDebt = vm.totalDebt(),
                 debtors = vm.indebtedCustomersCount(),
                 collections = vm.todayCollections(),
+                hideAmounts = security.hideAmounts,
                 onDebt = onSearch,
                 onPayment = onSearch
             )
@@ -133,7 +135,7 @@ fun HomeScreenV3(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 V3Stat(
                     "ديون اليوم",
-                    formatMoney(vm.todayDebts()),
+                    if (security.hideAmounts) "•••• د.ع" else formatMoney(vm.todayDebts()),
                     Icons.Rounded.ReceiptLong,
                     onDailyDebts,
                     Modifier.weight(1f),
@@ -141,7 +143,7 @@ fun HomeScreenV3(
                 )
                 V3Stat(
                     "تحصيل اليوم",
-                    formatMoney(vm.todayCollections()),
+                    if (security.hideAmounts) "•••• د.ع" else formatMoney(vm.todayCollections()),
                     Icons.Rounded.TrendingUp,
                     onCollections,
                     Modifier.weight(1f),
@@ -177,7 +179,12 @@ fun HomeScreenV3(
             }
         } else {
             items(topDebtors, key = { it.id }) { customer ->
-                CustomerCard(customer, vm.balance(customer), { onCustomer(customer.id) })
+                CustomerCard(
+                    customer,
+                    vm.balance(customer),
+                    { onCustomer(customer.id) },
+                    hideBalance = security.hideAmounts
+                )
             }
         }
         item { SectionTitle("آخر الحركات", "التحصيلات", onCollections) }
@@ -205,7 +212,7 @@ fun HomeScreenV3(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    TransactionRow(entry)
+                    TransactionRow(entry, hideAmounts = security.hideAmounts)
                 }
             }
         }
@@ -241,6 +248,7 @@ private fun V3DebtHero(
     totalDebt: Long,
     debtors: Int,
     collections: Long,
+    hideAmounts: Boolean,
     onDebt: () -> Unit,
     onPayment: () -> Unit
 ) {
@@ -254,13 +262,14 @@ private fun V3DebtHero(
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("إجمالي الدين الحالي", color = Color.White.copy(alpha = 0.78f))
             Text(
-                formatMoney(totalDebt),
+                if (hideAmounts) "•••• د.ع" else formatMoney(totalDebt),
                 style = MaterialTheme.typography.headlineLarge,
                 color = Color.White,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                debtors.toString() + " حساب مفتوح • تحصيل اليوم " + formatMoney(collections),
+                debtors.toString() + " حساب مفتوح • تحصيل اليوم " +
+                    if (hideAmounts) "•••• د.ع" else formatMoney(collections),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.72f)
             )
@@ -387,6 +396,7 @@ fun CustomersScreenV3(
 ) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val security by vm.securityState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(CustomerSortV3.HIGHEST) }
 
@@ -436,7 +446,11 @@ fun CustomersScreenV3(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
-                        Text(formatMoney(vm.totalDebt()), style = MaterialTheme.typography.titleMedium, color = DebtRed)
+                        Text(
+                            if (security.hideAmounts) "•••• د.ع" else formatMoney(vm.totalDebt()),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = DebtRed
+                        )
                     }
                 }
             }
@@ -477,6 +491,7 @@ fun CustomersScreenV3(
                     customer = customer,
                     balance = vm.balance(customer),
                     lastActivity = vm.lastEntryFor(customer.id)?.let { "آخر تعامل " + formatDate(it.createdAt) },
+                    hideBalance = security.hideAmounts,
                     onClick = { onCustomer(customer.id) }
                 )
             }

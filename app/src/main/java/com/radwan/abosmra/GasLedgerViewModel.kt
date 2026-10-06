@@ -10,6 +10,9 @@ import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
 import com.radwan.abosmra.data.MutationResult
+import com.radwan.abosmra.security.AppSecurityStore
+import com.radwan.abosmra.security.SecurityMutationResult
+import com.radwan.abosmra.security.SecurityState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +22,13 @@ import java.time.ZoneId
 
 class GasLedgerViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AppRepository(application)
+    private val security = AppSecurityStore(application)
+
+    private val _securityState = MutableStateFlow(security.state())
+    val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
+
+    private val _isUnlocked = MutableStateFlow(!security.isPinEnabled())
+    val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
 
     private val _customers = MutableStateFlow(repository.customers())
     val customers: StateFlow<List<Customer>> = _customers.asStateFlow()
@@ -171,6 +181,84 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setAutoBackupInterval(interval: AutoBackupInterval) {
         repository.setAutoBackupInterval(interval)
+    }
+
+    fun unlockWithPin(pin: String): SecurityMutationResult {
+        val success = security.verifyPin(pin)
+        if (success) {
+            _isUnlocked.value = true
+            return SecurityMutationResult(true, "تم فتح التطبيق.")
+        }
+        return SecurityMutationResult(false, "PIN غير صحيح.")
+    }
+
+    fun unlockWithBiometric() {
+        if (_securityState.value.pinEnabled && _securityState.value.biometricEnabled) {
+            _isUnlocked.value = true
+        }
+    }
+
+    fun lockNow() {
+        if (_securityState.value.pinEnabled) _isUnlocked.value = false
+    }
+
+    fun onAppBackgrounded() {
+        security.markBackgrounded()
+    }
+
+    fun onAppForegrounded() {
+        refreshSecurityState()
+        if (security.shouldLockOnForeground()) {
+            _isUnlocked.value = false
+        }
+    }
+
+    fun setPin(pin: String): SecurityMutationResult {
+        val result = security.setPin(pin)
+        if (result.success) {
+            _isUnlocked.value = true
+            refreshSecurityState()
+        }
+        return result
+    }
+
+    fun changePin(currentPin: String, newPin: String): SecurityMutationResult {
+        val result = security.changePin(currentPin, newPin)
+        if (result.success) refreshSecurityState()
+        return result
+    }
+
+    fun disablePin(currentPin: String): SecurityMutationResult {
+        val result = security.disablePin(currentPin)
+        if (result.success) {
+            _isUnlocked.value = true
+            refreshSecurityState()
+        }
+        return result
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        security.setBiometricEnabled(enabled)
+        refreshSecurityState()
+    }
+
+    fun setHideAmounts(enabled: Boolean) {
+        security.setHideAmounts(enabled)
+        refreshSecurityState()
+    }
+
+    fun setSecureScreen(enabled: Boolean) {
+        security.setSecureScreen(enabled)
+        refreshSecurityState()
+    }
+
+    fun setLockTimeoutSeconds(seconds: Int) {
+        security.setLockTimeoutSeconds(seconds)
+        refreshSecurityState()
+    }
+
+    private fun refreshSecurityState() {
+        _securityState.value = security.state()
     }
 
     fun resetDemoData() {
