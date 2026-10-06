@@ -4,6 +4,11 @@ import android.content.Context
 import androidx.room3.Room
 import androidx.sqlite.driver.AndroidSQLiteDriver
 import androidx.test.core.app.ApplicationProvider
+import com.radwan.abosmra.speech.ArabicDebtAmountParser
+import com.radwan.abosmra.speech.SpeechAmountParseResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -83,6 +88,152 @@ class GasLedgerDaoTest {
         assertEquals(4_000L, summary.totalDebt)
         assertEquals(1, summary.openAccounts)
         assertEquals(1, summary.totalCustomers)
+    }
+
+    @Test
+    fun protectedDebtInsert_blocksRecentDuplicateButAllowsExplicitOverride() = runTest {
+        val customer = CustomerEntity(
+            id = "duplicate-customer",
+            name = "أحمد",
+            phone = null,
+            area = "",
+            address = "",
+            openingDebt = 0L,
+            notes = "",
+            createdAt = 1_000L
+        )
+        dao.insertCustomer(customer)
+
+        val first = LedgerEntryEntity(
+            id = "debt-1",
+            customerId = customer.id,
+            type = EntryType.DEBT.name,
+            amount = 5_000L,
+            bottles = null,
+            bottlePrice = null,
+            details = "",
+            createdAt = 20_000L
+        )
+        val second = first.copy(
+            id = "debt-2",
+            createdAt = 23_000L
+        )
+        val third = first.copy(
+            id = "debt-3",
+            createdAt = 24_000L
+        )
+
+        val firstDuplicate = dao.insertDebtProtected(
+            entry = first,
+            duplicateCutoffMillis = 5_000L,
+            allowRecentDuplicate = false
+        )
+        assertNull(firstDuplicate)
+
+        val duplicate = dao.insertDebtProtected(
+            entry = second,
+            duplicateCutoffMillis = 8_000L,
+            allowRecentDuplicate = false
+        )
+        assertEquals(first.id, duplicate?.id)
+        assertEquals(1, dao.getEntriesForCustomer(customer.id).size)
+
+        val forcedDuplicate = dao.insertDebtProtected(
+            entry = third,
+            duplicateCutoffMillis = 9_000L,
+            allowRecentDuplicate = true
+        )
+        assertNull(forcedDuplicate)
+        assertEquals(2, dao.getEntriesForCustomer(customer.id).size)
+    }
+
+    @Test
+    fun simultaneousProtectedDebtRequests_createOnlyOneRow() = runTest {
+        val customer = CustomerEntity(
+            id = "race-customer",
+            name = "سعد",
+            phone = null,
+            area = "",
+            address = "",
+            openingDebt = 0L,
+            notes = "",
+            createdAt = 1_000L
+        )
+        dao.insertCustomer(customer)
+
+        val attempts = listOf("race-1", "race-2").map { id ->
+            async(Dispatchers.Default) {
+                dao.insertDebtProtected(
+                    entry = LedgerEntryEntity(
+                        id = id,
+                        customerId = customer.id,
+                        type = EntryType.DEBT.name,
+                        amount = 5_000L,
+                        bottles = null,
+                        bottlePrice = null,
+                        details = "",
+                        createdAt = 50_000L
+                    ),
+                    duplicateCutoffMillis = 35_000L,
+                    allowRecentDuplicate = false
+                )
+            }
+        }.awaitAll()
+
+        assertEquals(1, attempts.count { it == null })
+        assertEquals(1, attempts.count { it != null })
+        assertEquals(1, dao.getEntriesForCustomer(customer.id).size)
+    }
+
+    @Test
+    fun voiceDerivedAmount_stillUsesDuplicateTransactionGuard() = runTest {
+        val customer = CustomerEntity(
+            id = "voice-customer",
+            name = "أحمد",
+            phone = null,
+            area = "",
+            address = "",
+            openingDebt = 0L,
+            notes = "",
+            createdAt = 1_000L
+        )
+        dao.insertCustomer(customer)
+
+        val parsed = ArabicDebtAmountParser.parse("خمسة آلاف دينار عراقي")
+        val amount = (parsed as SpeechAmountParseResult.Success).amount
+
+        dao.insertDebtProtected(
+            entry = LedgerEntryEntity(
+                id = "voice-1",
+                customerId = customer.id,
+                type = EntryType.DEBT.name,
+                amount = amount,
+                bottles = null,
+                bottlePrice = null,
+                details = "",
+                createdAt = 60_000L
+            ),
+            duplicateCutoffMillis = 45_000L,
+            allowRecentDuplicate = false
+        )
+
+        val duplicate = dao.insertDebtProtected(
+            entry = LedgerEntryEntity(
+                id = "voice-2",
+                customerId = customer.id,
+                type = EntryType.DEBT.name,
+                amount = amount,
+                bottles = null,
+                bottlePrice = null,
+                details = "",
+                createdAt = 61_000L
+            ),
+            duplicateCutoffMillis = 46_000L,
+            allowRecentDuplicate = false
+        )
+
+        assertEquals("voice-1", duplicate?.id)
+        assertEquals(1, dao.getEntriesForCustomer(customer.id).size)
     }
 
     @Test

@@ -6,6 +6,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -29,19 +33,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocalShipping
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,17 +75,33 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
+import com.radwan.abosmra.data.DebtAnomalyWarning
+import com.radwan.abosmra.data.DebtCreateResult
 import com.radwan.abosmra.notifications.FinancialOperationFeedback
 import com.radwan.abosmra.notifications.FinancialOperationKind
 import com.radwan.abosmra.notifications.FinancialOperationReceipt
+import com.radwan.abosmra.speech.ArabicDebtAmountParser
+import com.radwan.abosmra.speech.DebtSpeechError
+import com.radwan.abosmra.speech.DebtSpeechRecognizer
+import com.radwan.abosmra.speech.SpeechAmountParseResult
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
 import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatMoney
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val MICROPHONE_PERMISSION_V29 = "android.permission." + "RECORD_AUDIO"
+
+private data class DebtDraftV29(
+    val amount: Long,
+    val bottles: Int?,
+    val bottlePrice: Long?,
+    val balanceBefore: Long
+)
 
 private enum class DebtModeV12(val label: String) {
     AMOUNT("مبلغ مباشر"),
@@ -95,9 +121,11 @@ fun AddDebtScreenV12(
         return
     }
 
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
+    val speechRecognizer = remember(context) { DebtSpeechRecognizer(context) }
     val previousBalance = vm.balance(customer)
 
     var modeName by rememberSaveable { mutableStateOf(DebtModeV12.AMOUNT.name) }
@@ -109,6 +137,18 @@ fun AddDebtScreenV12(
     var isSaving by rememberSaveable { mutableStateOf(false) }
     var savedAmount by rememberSaveable { mutableStateOf<Long?>(null) }
 
+    var pendingAnomaly by remember { mutableStateOf<DebtAnomalyWarning?>(null) }
+    var pendingAnomalyDraft by remember { mutableStateOf<DebtDraftV29?>(null) }
+    var pendingDuplicate by remember {
+        mutableStateOf<DebtCreateResult.DuplicateDetected?>(null)
+    }
+    var pendingDuplicateDraft by remember { mutableStateOf<DebtDraftV29?>(null) }
+
+    var voiceListening by remember { mutableStateOf(false) }
+    var voiceTranscript by remember { mutableStateOf("") }
+    var voiceFeedback by remember { mutableStateOf<String?>(null) }
+    var voiceError by remember { mutableStateOf<String?>(null) }
+
     val bottleCount = bottles.toIntOrNull() ?: 0
     val price = bottlePrice.toLongOrNull() ?: 0L
     val amount = if (mode == DebtModeV12.AMOUNT) {
@@ -116,7 +156,182 @@ fun AddDebtScreenV12(
     } else {
         if (bottleCount > 0 && price > 0) bottleCount * price else 0L
     }
-    val canSubmit = amount > 0L && !isSaving
+    val canSubmit = amount > 0L && !isSaving && !voiceListening
+
+    fun applyVoiceResult(
+        parsed: SpeechAmountParseResult,
+        heard: String?
+    ) {
+        heard?.takeIf { it.isNotBlank() }?.let { voiceTranscript = it }
+
+        when (parsed) {
+            is SpeechAmountParseResult.Success -> {
+                if (parsed.amount > 999_999_999_999L) {
+                    voiceFeedback = null
+                    voiceError = "المبلغ الذي تم سماعه أكبر من الحد المسموح."
+                } else {
+                    amountText = parsed.amount.toString()
+                    errorText = null
+                    voiceError = null
+                    voiceFeedback = "تم التعرف على المبلغ: " + formatMoney(parsed.amount)
+                }
+            }
+            SpeechAmountParseResult.Ambiguous -> {
+                voiceFeedback = null
+                voiceError = "سمعت أكثر من مبلغ محتمل. أعد نطق مبلغ واحد فقط."
+            }
+            SpeechAmountParseResult.NotFound -> {
+                voiceFeedback = null
+                voiceError = "لم أتمكن من تحديد المبلغ. أعد المحاولة أو أدخل المبلغ يدويًا."
+            }
+        }
+
+        voiceListening = false
+        speechRecognizer.cancel()
+    }
+
+    fun beginVoiceCapture() {
+        if (voiceListening || isSaving || mode != DebtModeV12.AMOUNT) return
+
+        voiceTranscript = ""
+        voiceFeedback = null
+        voiceError = null
+        voiceListening = true
+
+        val started = speechRecognizer.start(
+            DebtSpeechRecognizer.Callbacks(
+                onPartial = { text ->
+                    voiceTranscript = text
+                    if (ArabicDebtAmountParser.hasCurrencyEndMarker(text)) {
+                        when (val parsed = ArabicDebtAmountParser.parse(text)) {
+                            is SpeechAmountParseResult.Success ->
+                                applyVoiceResult(parsed, text)
+                            SpeechAmountParseResult.Ambiguous ->
+                                applyVoiceResult(parsed, text)
+                            SpeechAmountParseResult.NotFound -> Unit
+                        }
+                    }
+                },
+                onFinal = { alternatives ->
+                    applyVoiceResult(
+                        ArabicDebtAmountParser.parseAlternatives(alternatives),
+                        alternatives.firstOrNull()
+                    )
+                },
+                onError = { speechError ->
+                    voiceListening = false
+                    voiceFeedback = null
+                    voiceError = when (speechError) {
+                        DebtSpeechError.PERMISSION ->
+                            "يحتاج التسجيل الصوتي إلى إذن استخدام الميكروفون."
+                        DebtSpeechError.BUSY ->
+                            "الميكروفون مشغول حاليًا. حاول مرة أخرى."
+                        DebtSpeechError.UNAVAILABLE ->
+                            "التعرف الصوتي غير متاح على هذا الهاتف."
+                        else ->
+                            "لم أتمكن من تحديد المبلغ. أعد المحاولة أو أدخل المبلغ يدويًا."
+                    }
+                }
+            )
+        )
+
+        if (!started) voiceListening = false
+    }
+
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            beginVoiceCapture()
+        } else {
+            voiceListening = false
+            voiceError = "يحتاج التسجيل الصوتي إلى إذن استخدام الميكروفون."
+        }
+    }
+
+    fun onMicrophoneClick() {
+        if (voiceListening) {
+            speechRecognizer.cancel()
+            voiceListening = false
+            voiceError = null
+            return
+        }
+
+        if (
+            ContextCompat.checkSelfPermission(
+                context,
+                MICROPHONE_PERMISSION_V29
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            beginVoiceCapture()
+        } else {
+            microphonePermissionLauncher.launch(MICROPHONE_PERMISSION_V29)
+        }
+    }
+
+    DisposableEffect(speechRecognizer) {
+        onDispose { speechRecognizer.destroy() }
+    }
+
+    LaunchedEffect(mode) {
+        if (mode != DebtModeV12.AMOUNT && voiceListening) {
+            speechRecognizer.cancel()
+            voiceListening = false
+        }
+    }
+
+    LaunchedEffect(voiceListening, voiceTranscript) {
+        if (!voiceListening) return@LaunchedEffect
+        val snapshot = voiceTranscript
+        delay(if (snapshot.isBlank()) 8_000L else 3_000L)
+        if (voiceListening && voiceTranscript == snapshot) {
+            speechRecognizer.stopListening()
+        }
+    }
+
+    suspend fun persistDraft(
+        draft: DebtDraftV29,
+        allowRecentDuplicate: Boolean
+    ) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                vm.addDebt(
+                    customerId = customerId,
+                    amount = draft.amount,
+                    bottles = draft.bottles,
+                    bottlePrice = draft.bottlePrice,
+                    allowRecentDuplicate = allowRecentDuplicate
+                )
+            }
+        }
+
+        isSaving = false
+
+        result.onSuccess { outcome ->
+            when (outcome) {
+                is DebtCreateResult.Created -> {
+                    savedAmount = draft.amount
+                    pendingDuplicate = null
+                    pendingDuplicateDraft = null
+                    sendFinancialFeedback(
+                        FinancialOperationReceipt(
+                            kind = FinancialOperationKind.DEBT,
+                            customerId = customer.id,
+                            customerName = customer.name,
+                            amount = draft.amount,
+                            balanceAfter = draft.balanceBefore + draft.amount
+                        )
+                    )
+                }
+                is DebtCreateResult.DuplicateDetected -> {
+                    pendingDuplicate = outcome
+                    pendingDuplicateDraft = draft
+                }
+            }
+        }.onFailure {
+            errorText = "تعذر حفظ الدين. حاول مرة أخرى."
+        }
+    }
 
     fun submit() {
         if (isSaving) return
@@ -129,37 +344,82 @@ fun AddDebtScreenV12(
             return
         }
 
+        val draft = DebtDraftV29(
+            amount = amount,
+            bottles = bottleCount.takeIf {
+                mode == DebtModeV12.BOTTLES && it > 0
+            },
+            bottlePrice = price.takeIf {
+                mode == DebtModeV12.BOTTLES && it > 0
+            },
+            balanceBefore = previousBalance
+        )
+
         focusManager.clearFocus()
         isSaving = true
         errorText = null
 
         scope.launch {
-            val result = runCatching {
+            val anomaly = runCatching {
                 withContext(Dispatchers.IO) {
-                    vm.addDebt(
-                        customerId = customerId,
-                        amount = amount,
-                        bottles = bottleCount.takeIf { mode == DebtModeV12.BOTTLES && it > 0 },
-                        bottlePrice = price.takeIf { mode == DebtModeV12.BOTTLES && it > 0 }
-                    )
+                    vm.debtAnomalyWarning(customerId, draft.amount)
+                }
+            }.getOrNull()
+
+            if (anomaly != null) {
+                isSaving = false
+                pendingAnomaly = anomaly
+                pendingAnomalyDraft = draft
+                return@launch
+            }
+
+            persistDraft(draft, allowRecentDuplicate = false)
+        }
+    }
+
+    pendingAnomaly?.let { warning ->
+        V29DebtAnomalyDialog(
+            customerName = customer.name,
+            warning = warning,
+            onReview = {
+                pendingAnomaly = null
+                pendingAnomalyDraft = null
+            },
+            onConfirm = {
+                val draft = pendingAnomalyDraft
+                pendingAnomaly = null
+                pendingAnomalyDraft = null
+                if (draft != null && !isSaving) {
+                    isSaving = true
+                    scope.launch {
+                        persistDraft(draft, allowRecentDuplicate = false)
+                    }
                 }
             }
-            isSaving = false
-            if (result.isSuccess) {
-                savedAmount = amount
-                sendFinancialFeedback(
-                    FinancialOperationReceipt(
-                        kind = FinancialOperationKind.DEBT,
-                        customerId = customer.id,
-                        customerName = customer.name,
-                        amount = amount,
-                        balanceAfter = previousBalance + amount
-                    )
-                )
-            } else {
-                errorText = "تعذر حفظ الدين. حاول مرة أخرى."
+        )
+    }
+
+    pendingDuplicate?.let { duplicate ->
+        V29DuplicateDebtDialog(
+            customerName = customer.name,
+            amount = pendingDuplicateDraft?.amount ?: duplicate.previousEntry.amount,
+            secondsAgo = duplicate.secondsAgo,
+            onCancel = {
+                pendingDuplicate = null
+                pendingDuplicateDraft = null
+            },
+            onForceSave = {
+                val draft = pendingDuplicateDraft
+                pendingDuplicate = null
+                pendingDuplicateDraft = null
+                if (draft != null && !isSaving) {
+                    isSaving = true
+                    scope.launch {
+                        persistDraft(draft, allowRecentDuplicate = true)
+                    }
+                }
             }
-        }
+        )
     }
 
     savedAmount?.let { saved ->
@@ -185,7 +445,11 @@ fun AddDebtScreenV12(
                 Button(
                     onClick = ::submit,
                     enabled = canSubmit,
-                    modifier = Modifier.fillMaxWidth().imePadding().padding(12.dp, 10.dp, 12.dp, 12.dp).height(58.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding()
+                        .padding(12.dp, 10.dp, 12.dp, 12.dp)
+                        .height(58.dp),
                     shape = MaterialTheme.shapes.large
                 ) {
                     if (isSaving) {
@@ -194,7 +458,10 @@ fun AddDebtScreenV12(
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
-                        Text("جاري تسجيل الدين...", modifier = Modifier.padding(horizontal = 8.dp))
+                        Text(
+                            "جاري تسجيل الدين...",
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
                     } else {
                         Text("تسجيل الدين", style = MaterialTheme.typography.labelLarge)
                     }
@@ -228,6 +495,8 @@ fun AddDebtScreenV12(
                                 if (!isSaving) {
                                     modeName = item.name
                                     errorText = null
+                                    voiceFeedback = null
+                                    voiceError = null
                                 }
                             },
                             label = { Text(item.label) },
@@ -239,27 +508,61 @@ fun AddDebtScreenV12(
 
             if (mode == DebtModeV12.AMOUNT) {
                 item {
-                    V12AmountInput(
-                        value = amountText,
-                        onValueChange = {
-                            amountText = it.filter(Char::isDigit).take(12)
-                            errorText = null
-                        },
-                        label = "مبلغ الدين",
-                        helper = errorText ?: "أدخل المبلغ ثم اضغط تم من لوحة الأرقام للحفظ.",
-                        isError = errorText != null,
-                        enabled = !isSaving,
-                        onDone = ::submit
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        V12AmountInput(
+                            value = amountText,
+                            onValueChange = {
+                                amountText = it.filter(Char::isDigit).take(12)
+                                errorText = null
+                                voiceFeedback = null
+                            },
+                            label = "مبلغ الدين",
+                            helper = errorText
+                                ?: "اكتب المبلغ أو استخدم الميكروفون، ثم راجعه قبل الحفظ.",
+                            isError = errorText != null,
+                            enabled = !isSaving && !voiceListening,
+                            onDone = ::submit,
+                            trailingIcon = {
+                                V29DebtMicrophoneButton(
+                                    listening = voiceListening,
+                                    enabled = !isSaving,
+                                    onClick = ::onMicrophoneClick
+                                )
+                            }
+                        )
+
+                        if (
+                            voiceListening ||
+                            voiceTranscript.isNotBlank() ||
+                            voiceFeedback != null ||
+                            voiceError != null
+                        ) {
+                            V29VoiceStatus(
+                                listening = voiceListening,
+                                transcript = voiceTranscript,
+                                feedback = voiceFeedback,
+                                error = voiceError
+                            )
+                        }
+                    }
                 }
+
                 item {
                     V12QuickAmounts(
-                        values = listOf(5_000L, 10_000L, 15_000L, 20_000L, 25_000L, 50_000L),
+                        values = listOf(
+                            5_000L,
+                            10_000L,
+                            15_000L,
+                            20_000L,
+                            25_000L,
+                            50_000L
+                        ),
                         selected = amountText.toLongOrNull(),
-                        enabled = !isSaving
+                        enabled = !isSaving && !voiceListening
                     ) {
                         amountText = it.toString()
                         errorText = null
+                        voiceFeedback = null
                     }
                 }
             } else {
@@ -267,13 +570,19 @@ fun AddDebtScreenV12(
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.extraLarge,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant
+                        )
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("تفاصيل القناني", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "تفاصيل القناني",
+                                style = MaterialTheme.typography.titleMedium
+                            )
 
                             OutlinedTextField(
                                 value = bottles,
@@ -290,7 +599,9 @@ fun AddDebtScreenV12(
                                     imeAction = ImeAction.Next
                                 ),
                                 keyboardActions = KeyboardActions(
-                                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                                    onNext = {
+                                        focusManager.moveFocus(FocusDirection.Down)
+                                    }
                                 ),
                                 shape = MaterialTheme.shapes.large
                             )
@@ -310,7 +621,9 @@ fun AddDebtScreenV12(
                                     keyboardType = KeyboardType.Number,
                                     imeAction = ImeAction.Done
                                 ),
-                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { submit() }
+                                ),
                                 shape = MaterialTheme.shapes.large
                             )
 
@@ -319,7 +632,10 @@ fun AddDebtScreenV12(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("الإجمالي", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "الإجمالي",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Text(
                                     formatMoney(amount),
                                     style = MaterialTheme.typography.titleLarge,
@@ -328,7 +644,10 @@ fun AddDebtScreenV12(
                                 )
                             }
                             errorText?.let {
-                                Text(it, color = MaterialTheme.colorScheme.error)
+                                Text(
+                                    it,
+                                    color = MaterialTheme.colorScheme.error
+                                )
                             }
                         }
                     }
@@ -613,7 +932,8 @@ private fun V12AmountInput(
     helper: String,
     isError: Boolean,
     enabled: Boolean,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    trailingIcon: (@Composable () -> Unit)? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -621,6 +941,7 @@ private fun V12AmountInput(
         modifier = Modifier.fillMaxWidth(),
         label = { Text(label) },
         suffix = { Text("د.ع") },
+        trailingIcon = trailingIcon,
         enabled = enabled,
         singleLine = true,
         isError = isError,

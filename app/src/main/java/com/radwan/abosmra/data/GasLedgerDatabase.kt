@@ -219,6 +219,56 @@ interface GasLedgerDao {
         endMillis: Long
     ): List<DailyMovementSummary>
 
+    @Query(
+        """
+        SELECT * FROM ledger_entries
+        WHERE customer_id = :customerId
+          AND type = 'DEBT'
+          AND amount = :amount
+          AND created_at >= :cutoffMillis
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+    )
+    suspend fun findRecentMatchingDebt(
+        customerId: String,
+        amount: Long,
+        cutoffMillis: Long
+    ): LedgerEntryEntity?
+
+    @Query(
+        """
+        SELECT amount FROM ledger_entries
+        WHERE customer_id = :customerId
+          AND type = 'DEBT'
+        ORDER BY created_at DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun recentDebtAmounts(
+        customerId: String,
+        limit: Int
+    ): List<Long>
+
+    @Transaction
+    suspend fun insertDebtProtected(
+        entry: LedgerEntryEntity,
+        duplicateCutoffMillis: Long,
+        allowRecentDuplicate: Boolean
+    ): LedgerEntryEntity? {
+        if (!allowRecentDuplicate) {
+            val duplicate = findRecentMatchingDebt(
+                customerId = entry.customerId,
+                amount = entry.amount,
+                cutoffMillis = duplicateCutoffMillis
+            )
+            if (duplicate != null) return duplicate
+        }
+
+        insertEntry(entry)
+        return null
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomer(customer: CustomerEntity)
 

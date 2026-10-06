@@ -125,13 +125,39 @@ class AppRepository(context: Context) {
         return MutationResult(true, "تم حذف الزبون.")
     }
 
+    suspend fun debtAnomalyWarning(
+        customerId: String,
+        candidateAmount: Long
+    ): DebtAnomalyWarning? {
+        require(candidateAmount > 0L)
+        require(dao.getCustomerById(customerId) != null) { "Customer not found" }
+
+        val historyCutoff = System.currentTimeMillis() - 180L * 24L * 60L * 60L * 1_000L
+        val recent = dao.getEntriesForCustomer(customerId)
+            .asSequence()
+            .map(LedgerEntryEntity::toModel)
+            .filter { entry ->
+                entry.type == EntryType.DEBT &&
+                    entry.createdAt >= historyCutoff &&
+                    entry.amount > 0L
+            }
+            .sortedByDescending { it.createdAt }
+            .take(DebtSafetyRules.ANOMALY_HISTORY_LIMIT)
+            .map { it.amount }
+            .toList()
+
+        return DebtSafetyRules.anomalyWarning(recent, candidateAmount)
+    }
+
     suspend fun addDebt(
         customerId: String,
         amount: Long,
         bottles: Int?,
         bottlePrice: Long?,
-        details: String = ""
-    ): LedgerEntry {
+        details: String = "",
+        allowRecentDuplicate: Boolean = false,
+        nowMillis: Long = System.currentTimeMillis()
+    ): DebtCreateResult {
         require(amount > 0)
         require(dao.getCustomerById(customerId) != null) { "Customer not found" }
 
@@ -142,12 +168,27 @@ class AppRepository(context: Context) {
             amount = amount,
             bottles = bottles,
             bottlePrice = bottlePrice,
-            details = details
+            details = details,
+            createdAt = nowMillis
         )
-        dao.insertEntry(entry.toEntity())
+
+        val previousDuplicate = dao.insertDebtProtected(
+            entry = entry.toEntity(),
+            duplicateCutoffMillis = nowMillis - DebtSafetyRules.DUPLICATE_WINDOW_MILLIS,
+            allowRecentDuplicate = allowRecentDuplicate
+        )
+
+        if (previousDuplicate != null) {
+            val previous = previousDuplicate.toModel()
+            return DebtCreateResult.DuplicateDetected(
+                previousEntry = previous,
+                secondsAgo = ((nowMillis - previous.createdAt).coerceAtLeast(0L) / 1_000L)
+            )
+        }
+
         entriesCache = listOf(entry) + entriesCache.filterNot { it.id == entry.id }
         maybeCreateAutomaticBackup()
-        return entry
+        return DebtCreateResult.Created(entry)
     }
 
     suspend fun addPayment(customerId: String, amount: Long): LedgerEntry {
