@@ -105,7 +105,7 @@ private val NotoSansArabicFontFamily = FontFamily(
     Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Bold)
 )
 
-private fun familyFor(font: AppFontPreset): FontFamily =
+internal fun appFontFamily(font: AppFontPreset): FontFamily =
     when (font) {
         AppFontPreset.CAIRO -> CairoFontFamily
         AppFontPreset.TAJAWAL -> TajawalFontFamily
@@ -117,7 +117,7 @@ private fun buildTypography(
     font: AppFontPreset,
     scale: Float
 ): Typography {
-    val family = familyFor(font)
+    val family = appFontFamily(font)
     val safeScale = scale.coerceIn(
         TypographySettings.MIN_TEXT_SCALE,
         TypographySettings.MAX_TEXT_SCALE
