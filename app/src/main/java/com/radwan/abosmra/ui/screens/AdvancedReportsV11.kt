@@ -58,6 +58,7 @@ import com.radwan.abosmra.data.AreaDebtSummary
 import com.radwan.abosmra.data.CustomerDebtSummary
 import com.radwan.abosmra.data.DailyMovementSummary
 import com.radwan.abosmra.data.ReportPeriodV11
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SectionTitle
 import com.radwan.abosmra.ui.theme.DebtRed
@@ -591,15 +592,15 @@ private fun V11CustomersCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(32.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text((index + 1).toString(), style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
+                    CustomerAvatar(
+                        customerId = item.customerId,
+                        size = 36.dp
+                    )
+                    Text(
+                        "#" + (index + 1).toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(item.name, style = MaterialTheme.typography.titleSmall)
                         Text(
