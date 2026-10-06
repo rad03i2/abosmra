@@ -2,22 +2,27 @@ package com.radwan.abosmra.util
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
-import android.graphics.pdf.PdfDocument
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
+import androidx.core.content.res.ResourcesCompat
+import com.radwan.abosmra.R
+import com.radwan.abosmra.customer.CustomerPhotoStore
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStream
 
 data class StatementSnapshot(
     val customer: Customer,
@@ -29,51 +34,32 @@ data class StatementSnapshot(
 )
 
 object StatementDocumentRenderer {
-    const val WIDTH = 1240
-    const val HEIGHT = 1754
+    const val WIDTH = 1440
+    const val HEIGHT = 1920
 
-    private val green = Color.rgb(11, 98, 82)
-    private val greenDark = Color.rgb(7, 62, 53)
-    private val greenSoft = Color.rgb(221, 243, 236)
-    private val red = Color.rgb(179, 58, 50)
-    private val redSoft = Color.rgb(255, 231, 228)
-    private val ink = Color.rgb(21, 32, 29)
-    private val muted = Color.rgb(104, 116, 111)
-    private val line = Color.rgb(229, 234, 232)
+    private val green = Color.rgb(12, 117, 99)
+    private val greenDark = Color.rgb(6, 60, 52)
+    private val greenSoft = Color.rgb(225, 244, 236)
+    private val gold = Color.rgb(232, 166, 58)
+    private val goldSoft = Color.rgb(255, 243, 220)
+    private val red = Color.rgb(185, 67, 56)
+    private val redSoft = Color.rgb(253, 233, 230)
+    private val ink = Color.rgb(23, 33, 30)
+    private val muted = Color.rgb(102, 115, 110)
+    private val line = Color.rgb(225, 231, 228)
+    private val warmBackground = Color.rgb(248, 246, 241)
 
-    fun createPng(context: Context, snapshot: StatementSnapshot): File {
-        val bitmap = render(snapshot)
+    fun createPng(
+        context: Context,
+        snapshot: StatementSnapshot
+    ): File {
+        val bitmap = render(context, snapshot)
         val file = File(shareDir(context), fileName(snapshot, "png"))
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        FileOutputStream(file).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
         bitmap.recycle()
         return file
-    }
-
-    fun createPdf(context: Context, snapshot: StatementSnapshot): File {
-        val file = File(shareDir(context), fileName(snapshot, "pdf"))
-        FileOutputStream(file).use { writePdf(snapshot, it) }
-        return file
-    }
-
-    fun writePdf(snapshot: StatementSnapshot, output: OutputStream) {
-        val bitmap = render(snapshot)
-        val document = PdfDocument()
-        try {
-            val page = document.startPage(
-                PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, 1).create()
-            )
-            page.canvas.drawBitmap(
-                bitmap,
-                null,
-                Rect(0, 0, WIDTH, HEIGHT),
-                Paint(Paint.ANTI_ALIAS_FLAG)
-            )
-            document.finishPage(page)
-            document.writeTo(output)
-        } finally {
-            bitmap.recycle()
-            document.close()
-        }
     }
 
     fun message(snapshot: StatementSnapshot): String = buildString {
@@ -83,10 +69,6 @@ object StatementDocumentRenderer {
         appendLine("الدين الحالي: " + formatMoney(snapshot.currentBalance))
         appendLine("شكرًا لحسن تعاملكم 🌹")
     }
-
-    fun suggestedPdfName(snapshot: StatementSnapshot): String =
-        "DaftarAlGas-" + safeName(snapshot.customer.name) + "-" +
-            formatDate(snapshot.generatedAt).replace("/", "-") + ".pdf"
 
     fun currentCycleEntries(snapshot: StatementSnapshot): List<LedgerEntry> {
         if (snapshot.currentBalance <= 0L) return emptyList()
@@ -103,370 +85,558 @@ object StatementDocumentRenderer {
             if (running == 0L) cycleStart = index + 1
         }
 
-        return ordered.drop(cycleStart).sortedByDescending { it.createdAt }
+        return ordered
+            .drop(cycleStart)
+            .sortedByDescending { it.createdAt }
     }
 
-    private fun render(snapshot: StatementSnapshot): Bitmap {
-        val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+    private fun render(
+        context: Context,
+        snapshot: StatementSnapshot
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(
+            WIDTH,
+            HEIGHT,
+            Bitmap.Config.ARGB_8888
+        )
         val canvas = Canvas(bitmap)
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        val baseTypeface = runCatching {
+            ResourcesCompat.getFont(context, R.font.cairo_variable)
+        }.getOrNull() ?: Typeface.DEFAULT
 
-        canvas.drawColor(Color.rgb(250, 250, 247))
-
-        fill.color = greenDark
-        canvas.drawRoundRect(46f, 46f, (WIDTH - 46).toFloat(), 330f, 46f, 46f, fill)
-
-        fill.color = Color.argb(28, 255, 255, 255)
-        canvas.drawCircle((WIDTH - 128).toFloat(), 112f, 84f, fill)
-        fill.color = Color.argb(22, 255, 255, 255)
-        canvas.drawCircle(126f, 286f, 116f, fill)
-
-        text(canvas, "دفتر الغاز", 84, 78, WIDTH - 168, 56f, Color.WHITE, true)
-        text(canvas, "كشف حساب الدين", 84, 154, WIDTH - 168, 31f, Color.WHITE)
-        text(
-            canvas,
-            "تاريخ الإصدار • " + formatDate(snapshot.generatedAt),
-            84,
-            214,
-            WIDTH - 168,
-            25f,
-            Color.rgb(211, 235, 228)
+        val regular = Typeface.create(baseTypeface, Typeface.NORMAL)
+        val bold = Typeface.create(baseTypeface, Typeface.BOLD)
+        val painter = StatementPainter(
+            canvas = canvas,
+            regular = regular,
+            bold = bold
         )
 
-        val customerCardTop = 365
-        fill.color = Color.WHITE
+        canvas.drawColor(warmBackground)
+
+        val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                52f,
+                52f,
+                (WIDTH - 52).toFloat(),
+                348f,
+                intArrayOf(greenDark, green),
+                null,
+                Shader.TileMode.CLAMP
+            )
+        }
         canvas.drawRoundRect(
-            64f,
-            customerCardTop.toFloat(),
-            (WIDTH - 64).toFloat(),
-            (customerCardTop + 190).toFloat(),
-            34f,
-            34f,
-            fill
+            52f,
+            52f,
+            (WIDTH - 52).toFloat(),
+            358f,
+            50f,
+            50f,
+            headerPaint
         )
 
-        text(canvas, "الزبون", 92, customerCardTop + 28, 230, 23f, muted)
-        text(
-            canvas,
-            snapshot.customer.name,
-            310,
-            customerCardTop + 22,
-            WIDTH - 402,
-            34f,
-            ink,
-            true
+        val ornament = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(24, 255, 255, 255)
+        }
+        canvas.drawCircle(165f, 305f, 128f, ornament)
+        canvas.drawCircle((WIDTH - 148).toFloat(), 112f, 92f, ornament)
+
+        val goldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = gold }
+        canvas.drawRoundRect(
+            190f,
+            337f,
+            (WIDTH - 190).toFloat(),
+            345f,
+            4f,
+            4f,
+            goldPaint
         )
 
-        val secondary = buildList {
-            snapshot.customer.phone?.takeIf { it.isNotBlank() }?.let { add(it) }
-            snapshot.customer.area.takeIf { it.isNotBlank() }?.let { add(it) }
-        }.joinToString("  •  ")
+        painter.text(
+            value = "دفتر دين الغاز - ابو سمرة",
+            x = 100,
+            y = 88,
+            width = WIDTH - 200,
+            size = 62f,
+            color = Color.WHITE,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
+        )
+        painter.text(
+            value = "كشف حساب الدين",
+            x = 100,
+            y = 178,
+            width = WIDTH - 200,
+            size = 40f,
+            color = Color.WHITE,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
+        )
+        painter.text(
+            value = "تاريخ الكشف  •  " + formatDate(snapshot.generatedAt),
+            x = 100,
+            y = 251,
+            width = WIDTH - 200,
+            size = 29f,
+            color = Color.rgb(218, 239, 233),
+            alignment = Layout.Alignment.ALIGN_CENTER
+        )
 
-        if (secondary.isNotBlank()) {
-            text(
-                canvas,
-                secondary,
-                92,
-                customerCardTop + 91,
-                WIDTH - 184,
-                25f,
-                muted
+        val surfacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+        }
+
+        val customerTop = 402
+        canvas.drawRoundRect(
+            70f,
+            customerTop.toFloat(),
+            (WIDTH - 70).toFloat(),
+            (customerTop + 205).toFloat(),
+            36f,
+            36f,
+            surfacePaint
+        )
+
+        val customerPhoto = CustomerPhotoStore(context)
+            .file(snapshot.customer.id)
+            ?.takeIf { it.isFile }
+            ?.let { file ->
+                runCatching {
+                    BitmapFactory.decodeFile(file.absolutePath)
+                }.getOrNull()
+            }
+
+        val customerTextX = if (customerPhoto != null) 270 else 104
+        val customerTextWidth = WIDTH - customerTextX - 104
+
+        customerPhoto?.let { photo ->
+            val photoBounds = RectF(
+                102f,
+                (customerTop + 44).toFloat(),
+                222f,
+                (customerTop + 164).toFloat()
+            )
+            val clip = Path().apply {
+                addOval(photoBounds, Path.Direction.CW)
+            }
+            canvas.save()
+            canvas.clipPath(clip)
+            canvas.drawBitmap(
+                photo,
+                null,
+                photoBounds,
+                Paint(Paint.ANTI_ALIAS_FLAG)
+            )
+            canvas.restore()
+
+            val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(218, 226, 222)
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+            }
+            canvas.drawOval(photoBounds, border)
+            photo.recycle()
+        }
+
+        painter.text(
+            value = "بيانات الزبون",
+            x = customerTextX,
+            y = customerTop + 24,
+            width = customerTextWidth,
+            size = 25f,
+            color = gold,
+            isBold = true
+        )
+        painter.text(
+            value = snapshot.customer.name,
+            x = customerTextX,
+            y = customerTop + 67,
+            width = customerTextWidth,
+            size = 40f,
+            color = ink,
+            isBold = true
+        )
+
+        val contactLine = buildList {
+            snapshot.customer.phone
+                ?.takeIf { it.isNotBlank() }
+                ?.let { add("الهاتف: " + it) }
+            snapshot.customer.area
+                .takeIf { it.isNotBlank() }
+                ?.let { add("المنطقة: " + it) }
+        }.joinToString("    •    ")
+
+        if (contactLine.isNotBlank()) {
+            painter.text(
+                value = contactLine,
+                x = customerTextX,
+                y = customerTop + 135,
+                width = customerTextWidth,
+                size = 28f,
+                color = muted
             )
         }
 
-        fill.color = line
+        val balanceTop = 648
+        val balanceFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (snapshot.currentBalance > 0L) redSoft else greenSoft
+        }
         canvas.drawRoundRect(
-            92f,
-            (customerCardTop + 148).toFloat(),
-            (WIDTH - 92).toFloat(),
-            (customerCardTop + 151).toFloat(),
-            2f,
-            2f,
-            fill
-        )
-
-        val balanceTop = 590
-        fill.color = if (snapshot.currentBalance > 0) redSoft else greenSoft
-        canvas.drawRoundRect(
-            64f,
+            70f,
             balanceTop.toFloat(),
-            (WIDTH - 64).toFloat(),
-            (balanceTop + 286).toFloat(),
-            42f,
-            42f,
-            fill
+            (WIDTH - 70).toFloat(),
+            (balanceTop + 310).toFloat(),
+            46f,
+            46f,
+            balanceFill
         )
 
-        text(
-            canvas,
-            "الدين الحالي",
-            92,
-            balanceTop + 36,
-            WIDTH - 184,
-            30f,
-            muted,
-            false,
-            Layout.Alignment.ALIGN_CENTER
-        )
-        text(
-            canvas,
-            formatMoney(snapshot.currentBalance),
-            92,
-            balanceTop + 94,
-            WIDTH - 184,
-            72f,
-            if (snapshot.currentBalance > 0) red else green,
-            true,
-            Layout.Alignment.ALIGN_CENTER
-        )
-        text(
-            canvas,
-            if (snapshot.currentBalance > 0) "حساب مفتوح" else "الحساب مسدد بالكامل",
-            92,
-            balanceTop + 205,
-            WIDTH - 184,
-            27f,
-            if (snapshot.currentBalance > 0) red else green,
-            true,
-            Layout.Alignment.ALIGN_CENTER
+        val balanceBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+            color = if (snapshot.currentBalance > 0L) {
+                Color.rgb(235, 176, 169)
+            } else {
+                Color.rgb(157, 215, 191)
+            }
+        }
+        canvas.drawRoundRect(
+            70f,
+            balanceTop.toFloat(),
+            (WIDTH - 70).toFloat(),
+            (balanceTop + 310).toFloat(),
+            46f,
+            46f,
+            balanceBorder
         )
 
-        val summaryTop = 914
-        val gap = 22
-        val cardWidth = (WIDTH - 128 - gap) / 2
-        mini(
-            canvas,
-            64,
-            summaryTop,
-            cardWidth,
-            "إجمالي الديون",
-            formatMoney(snapshot.totalDebts),
-            Color.WHITE,
-            red
+        painter.text(
+            value = "الدين الحالي",
+            x = 100,
+            y = balanceTop + 42,
+            width = WIDTH - 200,
+            size = 32f,
+            color = muted,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
         )
-        mini(
-            canvas,
-            64 + cardWidth + gap,
-            summaryTop,
-            cardWidth,
-            "إجمالي المدفوع",
-            formatMoney(snapshot.totalPaid),
-            Color.WHITE,
-            green
+        painter.text(
+            value = formatMoney(snapshot.currentBalance),
+            x = 100,
+            y = balanceTop + 106,
+            width = WIDTH - 200,
+            size = 80f,
+            color = if (snapshot.currentBalance > 0L) red else green,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
+        )
+        painter.text(
+            value = if (snapshot.currentBalance > 0L) {
+                "حساب مفتوح"
+            } else {
+                "الحساب مسدد بالكامل"
+            },
+            x = 100,
+            y = balanceTop + 233,
+            width = WIDTH - 200,
+            size = 29f,
+            color = if (snapshot.currentBalance > 0L) red else green,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
         )
 
-        var y = 1078
-        text(
-            canvas,
-            if (snapshot.currentBalance > 0) {
+        val summaryTop = 998
+        val gap = 24
+        val cardWidth = (WIDTH - 140 - gap) / 2
+
+        painter.summaryCard(
+            x = 70 + cardWidth + gap,
+            y = summaryTop,
+            width = cardWidth,
+            label = "إجمالي الديون",
+            value = formatMoney(snapshot.totalDebts),
+            background = goldSoft,
+            foreground = red
+        )
+        painter.summaryCard(
+            x = 70,
+            y = summaryTop,
+            width = cardWidth,
+            label = "إجمالي المدفوع",
+            value = formatMoney(snapshot.totalPaid),
+            background = greenSoft,
+            foreground = green
+        )
+
+        var y = 1180
+        painter.text(
+            value = if (snapshot.currentBalance > 0L) {
                 "الحركات التي تكوّن الرصيد الحالي"
             } else {
                 "حالة الحساب"
             },
-            64,
-            y,
-            WIDTH - 128,
-            31f,
-            ink,
-            true
+            x = 76,
+            y = y,
+            width = WIDTH - 152,
+            size = 34f,
+            color = ink,
+            isBold = true
         )
-        y += 58
+        y += 62
 
         val currentCycle = currentCycleEntries(snapshot).take(6)
-        if (snapshot.currentBalance <= 0L) {
-            fill.color = greenSoft
-            canvas.drawRoundRect(
-                64f,
-                y.toFloat(),
-                (WIDTH - 64).toFloat(),
-                (y + 122).toFloat(),
-                28f,
-                28f,
-                fill
-            )
-            text(
-                canvas,
-                "لا يوجد دين حالي. الحساب مسدد بالكامل.",
-                92,
-                y + 37,
-                WIDTH - 184,
-                28f,
-                greenDark,
-                true,
-                Layout.Alignment.ALIGN_CENTER
-            )
-            y += 150
-        } else if (currentCycle.isEmpty()) {
-            fill.color = Color.WHITE
-            canvas.drawRoundRect(
-                64f,
-                y.toFloat(),
-                (WIDTH - 64).toFloat(),
-                (y + 110).toFloat(),
-                28f,
-                28f,
-                fill
-            )
-            text(
-                canvas,
-                "الرصيد الحالي ناتج عن الدين السابق المسجل للزبون.",
-                90,
-                y + 32,
-                WIDTH - 180,
-                27f,
-                muted,
-                true,
-                Layout.Alignment.ALIGN_CENTER
-            )
-            y += 138
-        } else {
-            currentCycle.forEach { entry ->
-                movement(canvas, entry, y)
-                y += 98
+
+        when {
+            snapshot.currentBalance <= 0L -> {
+                val paidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = greenSoft
+                }
+                canvas.drawRoundRect(
+                    70f,
+                    y.toFloat(),
+                    (WIDTH - 70).toFloat(),
+                    (y + 126).toFloat(),
+                    30f,
+                    30f,
+                    paidPaint
+                )
+                painter.text(
+                    value = "لا يوجد دين حالي — الحساب مسدد بالكامل",
+                    x = 100,
+                    y = y + 38,
+                    width = WIDTH - 200,
+                    size = 31f,
+                    color = greenDark,
+                    isBold = true,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                y += 150
+            }
+
+            currentCycle.isEmpty() -> {
+                canvas.drawRoundRect(
+                    70f,
+                    y.toFloat(),
+                    (WIDTH - 70).toFloat(),
+                    (y + 118).toFloat(),
+                    30f,
+                    30f,
+                    surfacePaint
+                )
+                painter.text(
+                    value = "الرصيد الحالي ناتج عن الدين السابق المسجل للزبون.",
+                    x = 102,
+                    y = y + 35,
+                    width = WIDTH - 204,
+                    size = 29f,
+                    color = muted,
+                    isBold = true,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                y += 142
+            }
+
+            else -> {
+                currentCycle.forEach { entry ->
+                    painter.movement(entry = entry, y = y)
+                    y += 92
+                }
             }
         }
 
-        val footerY = maxOf(y + 24, HEIGHT - 142)
-        fill.color = Color.WHITE
+        val footerTop = maxOf(y + 22, HEIGHT - 122)
         canvas.drawRoundRect(
-            64f,
-            footerY.toFloat(),
-            (WIDTH - 64).toFloat(),
-            (HEIGHT - 42).toFloat(),
-            30f,
-            30f,
-            fill
+            70f,
+            footerTop.toFloat(),
+            (WIDTH - 70).toFloat(),
+            (HEIGHT - 38).toFloat(),
+            28f,
+            28f,
+            surfacePaint
         )
-        text(
-            canvas,
-            "شكرًا لحسن تعاملكم 🌹",
-            92,
-            footerY + 29,
-            WIDTH - 184,
-            29f,
-            greenDark,
-            true,
-            Layout.Alignment.ALIGN_CENTER
+        painter.text(
+            value = "شكرًا لحسن تعاملكم 🌹",
+            x = 100,
+            y = footerTop + 22,
+            width = WIDTH - 200,
+            size = 28f,
+            color = greenDark,
+            isBold = true,
+            alignment = Layout.Alignment.ALIGN_CENTER
         )
-        text(
-            canvas,
-            "تم إنشاء هذا الكشف من تطبيق دفتر الغاز",
-            92,
-            footerY + 72,
-            WIDTH - 184,
-            21f,
-            muted,
-            false,
-            Layout.Alignment.ALIGN_CENTER
+        painter.text(
+            value = "دفتر دين الغاز - ابو سمرة",
+            x = 100,
+            y = footerTop + 61,
+            width = WIDTH - 200,
+            size = 21f,
+            color = muted,
+            alignment = Layout.Alignment.ALIGN_CENTER
         )
 
         return bitmap
     }
 
-    private fun section(canvas: Canvas, value: String, y: Int) {
-        text(canvas, value, 70, y, WIDTH - 140, 32f, ink, true)
-    }
-
-    private fun info(canvas: Canvas, label: String, value: String, y: Int) {
-        text(canvas, label, 70, y, 300, 25f, muted)
-        text(canvas, value, 380, y, WIDTH - 450, 28f, ink, true)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = line
-            strokeWidth = 2f
-        }
-        canvas.drawLine(70f, (y + 44).toFloat(), (WIDTH - 70).toFloat(), (y + 44).toFloat(), paint)
-    }
-
-    private fun mini(
-        canvas: Canvas,
-        x: Int,
-        y: Int,
-        width: Int,
-        label: String,
-        value: String,
-        background: Int,
-        foreground: Int
+    private class StatementPainter(
+        private val canvas: Canvas,
+        private val regular: Typeface,
+        private val bold: Typeface
     ) {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = background
-        }
-        canvas.drawRoundRect(
-            x.toFloat(),
-            y.toFloat(),
-            (x + width).toFloat(),
-            (y + 124).toFloat(),
-            26f,
-            26f,
-            paint
-        )
-        text(canvas, label, x + 20, y + 18, width - 40, 24f, muted)
-        text(canvas, value, x + 20, y + 58, width - 40, 31f, foreground, true)
-    }
+        fun text(
+            value: String,
+            x: Int,
+            y: Int,
+            width: Int,
+            size: Float,
+            color: Int,
+            isBold: Boolean = false,
+            alignment: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL,
+            maxLines: Int = 2
+        ) {
+            val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = size
+                this.color = color
+                typeface = if (isBold) bold else regular
+            }
 
-    private fun movement(canvas: Canvas, entry: LedgerEntry, y: Int) {
-        val debt = entry.type == EntryType.DEBT
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = if (debt) redSoft else greenSoft
-        }
-        canvas.drawRoundRect(70f, y.toFloat(), (WIDTH - 70).toFloat(), (y + 86).toFloat(), 22f, 22f, paint)
-        val details = entry.bottles?.let { " • " + it.toString() + " قنينة" }.orEmpty()
-        text(
-            canvas,
-            (if (debt) "دين" else "تحصيل") + " • " + formatDate(entry.createdAt) + details,
-            92,
-            y + 15,
-            650,
-            24f,
-            ink,
-            true
-        )
-        text(
-            canvas,
-            (if (debt) "+" else "-") + formatMoney(entry.amount),
-            760,
-            y + 15,
-            WIDTH - 850,
-            28f,
-            if (debt) red else green,
-            true
-        )
-    }
+            val layout = StaticLayout.Builder.obtain(
+                value,
+                0,
+                value.length,
+                paint,
+                width.coerceAtLeast(1)
+            )
+                .setAlignment(alignment)
+                .setTextDirection(TextDirectionHeuristics.RTL)
+                .setIncludePad(false)
+                .setMaxLines(maxLines)
+                .build()
 
-    private fun text(
-        canvas: Canvas,
-        value: String,
-        x: Int,
-        y: Int,
-        width: Int,
-        size: Float,
-        color: Int,
-        bold: Boolean = false,
-        alignment: Layout.Alignment = Layout.Alignment.ALIGN_OPPOSITE
-    ) {
-        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = size
-            this.color = color
-            typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
+            canvas.save()
+            canvas.translate(x.toFloat(), y.toFloat())
+            layout.draw(canvas)
+            canvas.restore()
         }
-        val layout = StaticLayout.Builder.obtain(value, 0, value.length, paint, width.coerceAtLeast(1))
-            .setAlignment(alignment)
-            .setTextDirection(TextDirectionHeuristics.RTL)
-            .setIncludePad(false)
-            .setMaxLines(2)
-            .build()
-        canvas.save()
-        canvas.translate(x.toFloat(), y.toFloat())
-        layout.draw(canvas)
-        canvas.restore()
+
+        fun summaryCard(
+            x: Int,
+            y: Int,
+            width: Int,
+            label: String,
+            value: String,
+            background: Int,
+            foreground: Int
+        ) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = background
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(
+                x.toFloat(),
+                y.toFloat(),
+                (x + width).toFloat(),
+                (y + 142).toFloat(),
+                32f,
+                32f,
+                paint
+            )
+            text(
+                value = label,
+                x = x + 22,
+                y = y + 22,
+                width = width - 44,
+                size = 25f,
+                color = muted,
+                isBold = true,
+                alignment = Layout.Alignment.ALIGN_CENTER
+            )
+            text(
+                value = value,
+                x = x + 22,
+                y = y + 69,
+                width = width - 44,
+                size = 34f,
+                color = foreground,
+                isBold = true,
+                alignment = Layout.Alignment.ALIGN_CENTER
+            )
+        }
+
+        fun movement(
+            entry: LedgerEntry,
+            y: Int
+        ) {
+            val isDebt = entry.type == EntryType.DEBT
+            val background = if (isDebt) redSoft else greenSoft
+            val accent = if (isDebt) red else green
+
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = background
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(
+                70f,
+                y.toFloat(),
+                (WIDTH - 70).toFloat(),
+                (y + 78).toFloat(),
+                24f,
+                24f,
+                fill
+            )
+
+            val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accent
+            }
+            canvas.drawRoundRect(
+                (WIDTH - 88).toFloat(),
+                (y + 14).toFloat(),
+                (WIDTH - 78).toFloat(),
+                (y + 64).toFloat(),
+                5f,
+                5f,
+                marker
+            )
+
+            val details = entry.bottles
+                ?.let { "  •  " + it.toString() + " قنينة" }
+                .orEmpty()
+
+            text(
+                value = (if (isDebt) "دين" else "تحصيل") +
+                    "  •  " + formatDate(entry.createdAt) + details,
+                x = 520,
+                y = y + 20,
+                width = WIDTH - 630,
+                size = 27f,
+                color = ink,
+                isBold = true
+            )
+            text(
+                value = (if (isDebt) "+" else "-") + formatMoney(entry.amount),
+                x = 92,
+                y = y + 18,
+                width = 390,
+                size = 31f,
+                color = accent,
+                isBold = true,
+                alignment = Layout.Alignment.ALIGN_CENTER
+            )
+        }
     }
 
     private fun shareDir(context: Context): File =
         File(context.cacheDir, "shared").apply { mkdirs() }
 
-    private fun fileName(snapshot: StatementSnapshot, extension: String): String =
-        "statement-" + safeName(snapshot.customer.name) + "-" + snapshot.generatedAt + "." + extension
+    private fun fileName(
+        snapshot: StatementSnapshot,
+        extension: String
+    ): String =
+        "statement-" +
+            safeName(snapshot.customer.name) +
+            "-" +
+            snapshot.generatedAt +
+            "." +
+            extension
 
     private fun safeName(value: String): String =
         value.trim()

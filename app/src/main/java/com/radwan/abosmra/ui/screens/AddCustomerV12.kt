@@ -29,7 +29,6 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.ContactPhone
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -237,12 +236,6 @@ fun AddCustomerScreenV12(
             onGallery = {
                 showPhotoSources = false
                 galleryLauncher.launch("image/*")
-            },
-            onWhatsApp = {
-                showPhotoSources = false
-                infoMessage =
-                    "واتساب لا يتيح للتطبيقات قراءة صورة بروفايل شخص آخر مباشرة. " +
-                    "بعد حفظ الزبون يمكنك فتح محادثته من ملفه، ويمكنك إضافة صورته من الكاميرا أو المعرض."
             },
             onRemove = {
                 selectedPhotoText = null
@@ -539,7 +532,6 @@ private fun CustomerPhotoSourceDialogV211(
     hasPhoto: Boolean,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
-    onWhatsApp: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -574,13 +566,6 @@ private fun CustomerPhotoSourceDialogV211(
                     title = "اختيار من المعرض",
                     onClick = onGallery
                 )
-                CustomerPhotoOptionV211(
-                    icon = Icons.Rounded.Chat,
-                    title = "صورة واتساب",
-                    supporting = "يتم توضيح إمكانية واتساب بعد الحفظ",
-                    onClick = onWhatsApp
-                )
-
                 if (hasPhoto) {
                     TextButton(
                         onClick = onRemove,

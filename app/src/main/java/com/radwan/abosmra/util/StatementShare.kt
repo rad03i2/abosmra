@@ -3,6 +3,7 @@ package com.radwan.abosmra.util
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.provider.Telephony
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -36,12 +37,44 @@ object StatementShare {
         )
     }
 
-    fun sharePdf(
+    fun shareImageToMessages(
         context: Context,
         file: File,
-        message: String
+        message: String,
+        phone: String
     ) {
-        shareFile(context, file, "application/pdf", message, false, null)
+        val uri = contentUri(context, file)
+        val normalizedPhone = normalizeIraqPhone(phone)
+        require(normalizedPhone.isNotBlank()) { "رقم الهاتف غير صالح." }
+
+        val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(context)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, message)
+            putExtra("sms_body", message)
+            putExtra("address", normalizedPhone)
+            clipData = ClipData.newRawUri("statement", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            defaultSmsPackage?.let(::setPackage)
+        }
+
+        runCatching {
+            context.startActivity(intent)
+        }.onFailure {
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_TEXT, message)
+                        clipData = ClipData.newRawUri("statement", uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    },
+                    "إرسال كشف الحساب عبر الرسائل"
+                )
+            )
+        }
     }
 
     private fun shareFile(
@@ -52,11 +85,7 @@ object StatementShare {
         whatsappOnly: Boolean,
         whatsappJid: String?
     ) {
-        val uri = FileProvider.getUriForFile(
-            context,
-            context.packageName + ".fileprovider",
-            file
-        )
+        val uri = contentUri(context, file)
 
         fun buildIntent(packageName: String? = null): Intent =
             Intent(Intent.ACTION_SEND).apply {
@@ -94,4 +123,13 @@ object StatementShare {
             )
         }
     }
+
+    private fun contentUri(
+        context: Context,
+        file: File
+    ) = FileProvider.getUriForFile(
+        context,
+        context.packageName + ".fileprovider",
+        file
+    )
 }
