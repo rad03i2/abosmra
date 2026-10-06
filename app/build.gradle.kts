@@ -21,10 +21,6 @@ android {
         buildConfig = true
     }
 
-    applicationInstallation {
-        enableBaselineProfile = true
-    }
-
     buildTypes {
         release {
             // Testing release: optimized like production, signed with the debug key so it
