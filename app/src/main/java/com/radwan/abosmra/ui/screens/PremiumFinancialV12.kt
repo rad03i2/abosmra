@@ -828,7 +828,7 @@ private fun V28AnimatedSuccessMark() {
             )
         }
 
-        if (progress.value >= 0.72f) {
+        if (progress.value >= 0.98f) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
