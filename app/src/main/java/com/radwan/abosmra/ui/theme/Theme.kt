@@ -80,74 +80,121 @@ private val CairoFontFamily = FontFamily(
     Font(R.font.cairo_variable, weight = FontWeight.ExtraBold)
 )
 
-private val AppTypography = Typography(
-    headlineLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 45.sp
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 37.sp
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 23.sp,
-        lineHeight = 32.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 21.sp,
-        lineHeight = 30.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 25.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 17.sp,
-        lineHeight = 28.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 24.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 20.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 19.sp
-    )
+private val TajawalFontFamily = FontFamily(
+    Font(R.font.tajawal_regular, weight = FontWeight.Light),
+    Font(R.font.tajawal_regular, weight = FontWeight.Normal),
+    Font(R.font.tajawal_medium, weight = FontWeight.Medium),
+    Font(R.font.tajawal_bold, weight = FontWeight.SemiBold),
+    Font(R.font.tajawal_bold, weight = FontWeight.Bold),
+    Font(R.font.tajawal_bold, weight = FontWeight.ExtraBold)
 )
+
+private val NotoKufiArabicFontFamily = FontFamily(
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Light),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Normal),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Medium),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.SemiBold),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Bold)
+)
+
+private val NotoSansArabicFontFamily = FontFamily(
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Light),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Normal),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Medium),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.SemiBold),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Bold)
+)
+
+private fun familyFor(font: AppFontPreset): FontFamily =
+    when (font) {
+        AppFontPreset.CAIRO -> CairoFontFamily
+        AppFontPreset.TAJAWAL -> TajawalFontFamily
+        AppFontPreset.NOTO_KUFI_ARABIC -> NotoKufiArabicFontFamily
+        AppFontPreset.NOTO_SANS_ARABIC -> NotoSansArabicFontFamily
+    }
+
+private fun buildTypography(
+    font: AppFontPreset,
+    scale: Float
+): Typography {
+    val family = familyFor(font)
+    val safeScale = scale.coerceIn(
+        TypographySettings.MIN_TEXT_SCALE,
+        TypographySettings.MAX_TEXT_SCALE
+    )
+
+    fun size(value: Float) = (value * safeScale).sp
+    fun line(value: Float) = (value * safeScale).sp
+
+    return Typography(
+        headlineLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Bold,
+            fontSize = size(36f),
+            lineHeight = line(45f)
+        ),
+        headlineMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Bold,
+            fontSize = size(28f),
+            lineHeight = line(37f)
+        ),
+        headlineSmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Bold,
+            fontSize = size(23f),
+            lineHeight = line(32f)
+        ),
+        titleLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Bold,
+            fontSize = size(21f),
+            lineHeight = line(30f)
+        ),
+        titleMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = size(17f),
+            lineHeight = line(25f)
+        ),
+        titleSmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = size(15f),
+            lineHeight = line(22f)
+        ),
+        bodyLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = size(17f),
+            lineHeight = line(28f)
+        ),
+        bodyMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = size(15f),
+            lineHeight = line(24f)
+        ),
+        bodySmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = size(13f),
+            lineHeight = line(20f)
+        ),
+        labelLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = size(15f),
+            lineHeight = line(22f)
+        ),
+        labelMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = size(13f),
+            lineHeight = line(19f)
+        )
+    )
+}
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(9.dp),
@@ -160,11 +207,13 @@ private val AppShapes = Shapes(
 @Composable
 fun GasLedgerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    font: AppFontPreset = AppFontPreset.CAIRO,
+    textScale: Float = TypographySettings.DEFAULT_TEXT_SCALE,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = AppTypography,
+        typography = buildTypography(font, textScale),
         shapes = AppShapes,
         content = content
     )
