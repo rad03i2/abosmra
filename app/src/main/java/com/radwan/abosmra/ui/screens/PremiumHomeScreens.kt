@@ -88,6 +88,8 @@ fun HomeScreenV3(
     onCustomers: () -> Unit,
     onAddCustomer: () -> Unit,
     onSearch: () -> Unit,
+    onQuickDebt: () -> Unit,
+    onQuickPayment: () -> Unit,
     onCollections: () -> Unit,
     onDailyDebts: () -> Unit,
     onTopDebtors: () -> Unit,
@@ -118,8 +120,8 @@ fun HomeScreenV3(
                 debtors = vm.indebtedCustomersCount(),
                 collections = vm.todayCollections(),
                 hideAmounts = security.hideAmounts,
-                onDebt = onSearch,
-                onPayment = onSearch
+                onDebt = onQuickDebt,
+                onPayment = onQuickPayment
             )
         }
         item { V3Search(onSearch) }
