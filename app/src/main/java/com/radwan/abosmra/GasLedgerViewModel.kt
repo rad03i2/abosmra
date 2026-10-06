@@ -408,13 +408,13 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun previewOperationSound(preset: OperationSoundPreset) {
         viewModelScope.launch(Dispatchers.Default) {
-            FinancialOperationFeedback.playOperationSound(preset)
+            FinancialOperationFeedback.playOperationSound(app, preset)
         }
     }
 
     fun previewNotificationSound(preset: NotificationSoundPreset) {
         viewModelScope.launch(Dispatchers.Default) {
-            FinancialOperationFeedback.playNotificationSound(preset)
+            FinancialOperationFeedback.playNotificationSound(app, preset)
         }
     }
 

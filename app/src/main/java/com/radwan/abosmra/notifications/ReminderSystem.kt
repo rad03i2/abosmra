@@ -1,8 +1,6 @@
 package com.radwan.abosmra.notifications
 
 import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -130,19 +128,9 @@ object ReminderScheduler {
             .enqueue(OneTimeWorkRequestBuilder<DebtReminderWorker>().build())
     }
 
-    fun ensureChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = context.getSystemService(NotificationManager::class.java)
-        val channel = NotificationChannel(
-            DebtReminderWorker.CHANNEL_ID,
-            "متابعة الديون",
-            NotificationManager.IMPORTANCE_DEFAULT
-        ).apply {
-            description = "تنبيهات خفيفة للحسابات التي تحتاج متابعة"
-            enableVibration(true)
-        }
-        manager.createNotificationChannel(channel)
-    }
+    fun ensureChannel(context: Context): String =
+        LedgerNotificationChannels.ensure(context, LedgerNotificationType.REMINDER)
+
 }
 
 internal data class ReminderCandidate(
@@ -285,8 +273,8 @@ class DebtReminderWorker(
                 .filter { store.canNotify(it.customer.id, settings.frequency, now) }
                 .take(MAX_INDIVIDUAL_NOTIFICATIONS)
 
-            selected.forEach { candidate ->
-                notifyCustomer(candidate)
+            selected.forEachIndexed { index, candidate ->
+                notifyCustomer(candidate, alert = index == 0)
                 store.markNotified(candidate.customer.id, now)
             }
 
@@ -301,7 +289,7 @@ class DebtReminderWorker(
         }
     }
 
-    private fun notifyCustomer(candidate: ReminderCandidate) {
+    private fun notifyCustomer(candidate: ReminderCandidate, alert: Boolean) {
         val privacy = AppSecurityStore(applicationContext).state()
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -327,13 +315,13 @@ class DebtReminderWorker(
         val topText = if (candidate.topDebtor) " • من أعلى المديونيات" else ""
         val body = "دين مفتوح منذ " + tierText + amountText + topText
 
-        val publicNotification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+        val publicNotification = NotificationCompat.Builder(applicationContext, ReminderScheduler.ensureChannel(applicationContext))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("دفتر الغاز")
             .setContentText("لديك حساب يحتاج متابعة.")
             .build()
 
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, ReminderScheduler.ensureChannel(applicationContext))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(candidate.customer.name)
             .setContentText(body)
@@ -342,9 +330,11 @@ class DebtReminderWorker(
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicNotification)
             .setGroup(GROUP_KEY)
+            .setSilent(!alert)
             .build()
 
         try {
@@ -371,7 +361,7 @@ class DebtReminderWorker(
         val text = count.toString() + " حسابات تحتاج متابعة" +
             if (highestTier >= 30) "، بينها ديون أقدم من 30 يومًا." else "."
 
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, ReminderScheduler.ensureChannel(applicationContext))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("ملخص متابعة الديون")
             .setContentText(text)
@@ -380,9 +370,11 @@ class DebtReminderWorker(
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
+            .setSilent(true)
             .build()
 
         try {
