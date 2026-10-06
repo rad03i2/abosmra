@@ -18,6 +18,9 @@ import com.radwan.abosmra.data.AdvancedReportSnapshot
 import com.radwan.abosmra.data.ReportPeriodV11
 import com.radwan.abosmra.data.ReportRepository
 import com.radwan.abosmra.security.AppSecurityStore
+import com.radwan.abosmra.ui.theme.ArabicFontPreset
+import com.radwan.abosmra.ui.theme.TypographySettings
+import com.radwan.abosmra.ui.theme.TypographySettingsStore
 import com.radwan.abosmra.security.SecurityMutationResult
 import com.radwan.abosmra.security.SecurityState
 import com.radwan.abosmra.notifications.FinancialOperationFeedback
@@ -51,6 +54,11 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val reportRepository = ReportRepository(application)
     private val financialFeedback = FinancialFeedbackStore(application)
     private val customerPhotos = CustomerPhotoStore(application)
+    private val typographyStore = TypographySettingsStore(application)
+
+    private val _typographySettings = MutableStateFlow(typographyStore.state())
+    val typographySettings: StateFlow<TypographySettings> =
+        _typographySettings.asStateFlow()
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
@@ -374,6 +382,21 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun refreshSecurityState() {
         _securityState.value = security.state()
+    }
+
+    fun setArabicFont(font: ArabicFontPreset) {
+        typographyStore.setFont(font)
+        _typographySettings.value = typographyStore.state()
+    }
+
+    fun setFontScale(scale: Float) {
+        typographyStore.setScale(scale)
+        _typographySettings.value = typographyStore.state()
+    }
+
+    fun resetTypography() {
+        typographyStore.reset()
+        _typographySettings.value = typographyStore.state()
     }
 
     fun setReminderEnabled(enabled: Boolean) {
