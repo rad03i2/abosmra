@@ -347,10 +347,14 @@ class DebtReminderWorker(
             .setGroup(GROUP_KEY)
             .build()
 
-        NotificationManagerCompat.from(applicationContext).notify(
-            customerNotificationId(candidate.customer.id),
-            notification
-        )
+        try {
+            NotificationManagerCompat.from(applicationContext).notify(
+                customerNotificationId(candidate.customer.id),
+                notification
+            )
+        } catch (_: SecurityException) {
+            // Permission can be revoked between the worker-level check and posting.
+        }
     }
 
     private fun notifySummary(count: Int, highestTier: Int) {
@@ -381,8 +385,12 @@ class DebtReminderWorker(
             .setGroupSummary(true)
             .build()
 
-        NotificationManagerCompat.from(applicationContext)
-            .notify(SUMMARY_NOTIFICATION_ID, notification)
+        try {
+            NotificationManagerCompat.from(applicationContext)
+                .notify(SUMMARY_NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+            // Permission can be revoked between the worker-level check and posting.
+        }
     }
 
     private fun customerNotificationId(customerId: String): Int =
