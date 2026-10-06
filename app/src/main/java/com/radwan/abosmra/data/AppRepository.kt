@@ -208,9 +208,9 @@ class AppRepository(context: Context) {
     }
 
     suspend fun deleteEntry(entryId: String): MutationResult {
-        val current = entriesCache.firstOrNull { it.id == entryId }
+        val current = dao.getEntryById(entryId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الحركة.")
-        val customer = customersCache.firstOrNull { it.id == current.customerId }
+        val customer = dao.getCustomerById(current.customerId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الزبون المرتبط بالحركة.")
 
         val candidateEntries = dao.getEntriesForCustomer(current.customerId)
