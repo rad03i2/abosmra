@@ -51,7 +51,8 @@ data class AdvancedReportSnapshot(
     val topAreas: List<AreaDebtSummary> = emptyList(),
     val topCustomers: List<CustomerDebtSummary> = emptyList(),
     val dailyMovement: List<DailyMovementSummary> = emptyList(),
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val errorMessage: String? = null
 ) {
     val netMovement: Long get() = debts - collections
     val averageOpenDebt: Long
