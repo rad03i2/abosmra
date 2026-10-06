@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +60,7 @@ import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatDate
 import com.radwan.abosmra.util.formatMoney
+import kotlinx.coroutines.launch
 
 private enum class DebtEntryMode(val label: String) {
     AMOUNT("مبلغ مباشر"),
@@ -71,6 +73,7 @@ fun AddDebtScreen(
     customerId: String,
     onBack: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val customers by vm.customers.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
@@ -246,13 +249,15 @@ fun AddDebtScreen(
                         if (debtAmount <= 0L) {
                             showError = true
                         } else {
-                            vm.addDebt(
-                                customerId = customerId,
-                                amount = debtAmount,
-                                bottles = bottleCount.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 },
-                                bottlePrice = onePrice.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 }
-                            )
-                            savedAmount = debtAmount
+                            scope.launch {
+                                vm.addDebt(
+                                    customerId = customerId,
+                                    amount = debtAmount,
+                                    bottles = bottleCount.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 },
+                                    bottlePrice = onePrice.takeIf { mode == DebtEntryMode.BOTTLES && it > 0 }
+                                )
+                                savedAmount = debtAmount
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -271,6 +276,7 @@ fun AddPaymentScreen(
     customerId: String,
     onBack: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val customers by vm.customers.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     if (customer == null) {
@@ -382,7 +388,9 @@ fun AddPaymentScreen(
                 item {
                     Button(
                         onClick = {
-                            if (vm.addPayment(customerId, amount)) savedAmount = amount
+                            scope.launch {
+                                if (vm.addPayment(customerId, amount)) savedAmount = amount
+                            }
                         },
                         enabled = amount > 0 && amount <= currentBalance,
                         modifier = Modifier.fillMaxWidth().height(54.dp),
