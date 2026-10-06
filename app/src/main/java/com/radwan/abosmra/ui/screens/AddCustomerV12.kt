@@ -29,7 +29,7 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.ContactPhone
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.WhatsApp
+import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -567,7 +567,7 @@ private fun CustomerPhotoSourceDialogV211(
                     onClick = onGallery
                 )
                 CustomerPhotoOptionV211(
-                    icon = Icons.Rounded.WhatsApp,
+                    icon = Icons.Rounded.Chat,
                     title = "صورة واتساب",
                     supporting = "يتم توضيح إمكانية واتساب بعد الحفظ",
                     onClick = onWhatsApp
