@@ -1,5 +1,7 @@
 package com.radwan.abosmra
 
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Assessment
@@ -16,11 +18,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -30,6 +39,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.radwan.abosmra.ui.screens.AddCustomerScreenV3
+import com.radwan.abosmra.ui.screens.AppLockScreenV9
 import com.radwan.abosmra.ui.screens.AddDebtScreenV3
 import com.radwan.abosmra.ui.screens.AddPaymentScreenV3
 import com.radwan.abosmra.ui.screens.AreasScreenV4
@@ -41,7 +51,7 @@ import com.radwan.abosmra.ui.screens.DailyDebtsScreenV4
 import com.radwan.abosmra.ui.screens.FollowUpScreenV4
 import com.radwan.abosmra.ui.screens.HomeScreenV3
 import com.radwan.abosmra.ui.screens.ReportsScreenV3
-import com.radwan.abosmra.ui.screens.SettingsScreenV8
+import com.radwan.abosmra.ui.screens.SettingsScreenV9
 import com.radwan.abosmra.ui.screens.SmartSearchScreenV4
 import com.radwan.abosmra.ui.screens.StatementScreenV7
 import com.radwan.abosmra.ui.screens.TopDebtorsScreenV4
@@ -83,6 +93,32 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val security by vm.securityState.collectAsStateWithLifecycle()
+    val unlocked by vm.isUnlocked.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> vm.onAppForegrounded()
+                Lifecycle.Event.ON_STOP -> vm.onAppBackgrounded()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    SideEffect {
+        (context as? Activity)?.window?.let { window ->
+            if (security.secureScreen) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
+    }
 
     val bottomItems = listOf(
         BottomDestination(Routes.HOME, "الرئيسية", Icons.Rounded.Home),
@@ -95,7 +131,10 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
 
     GasLedgerTheme {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-            Scaffold(
+            if (security.pinEnabled && !unlocked) {
+                AppLockScreenV9(vm)
+            } else {
+                Scaffold(
                 bottomBar = {
                     if (currentRoute != null && currentRoute in bottomRoutes) {
                         NavigationBar(
@@ -242,9 +281,10 @@ fun GasLedgerApp(vm: GasLedgerViewModel = viewModel()) {
                         FollowUpScreenV4(vm, navController::popBackStack, onCustomer = { navController.navigate(Routes.customer(it)) })
                     }
                     composable(Routes.SETTINGS) {
-                        SettingsScreenV8(vm)
+                        SettingsScreenV9(vm)
                     }
                 }
+            }
             }
         }
     }
