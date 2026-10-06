@@ -145,9 +145,17 @@ fun AddCustomerScreenV12(
                         ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
                     )
                     val pickedNumber = if (numberIndex >= 0) {
-                        cursor.getString(numberIndex).orEmpty()
+                        val digits = cursor.getString(numberIndex).orEmpty()
                             .filter(Char::isDigit)
-                            .takeLast(11)
+                        when {
+                            digits.startsWith("00964") ->
+                                ("0" + digits.removePrefix("00964")).take(11)
+                            digits.startsWith("964") ->
+                                ("0" + digits.removePrefix("964")).take(11)
+                            digits.length == 10 && digits.startsWith("7") ->
+                                ("0" + digits).take(11)
+                            else -> digits.take(11)
+                        }
                     } else {
                         ""
                     }
