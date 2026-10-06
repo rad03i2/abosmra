@@ -87,6 +87,7 @@ import com.radwan.abosmra.speech.ArabicDebtAmountParser
 import com.radwan.abosmra.speech.DebtSpeechError
 import com.radwan.abosmra.speech.DebtSpeechRecognizer
 import com.radwan.abosmra.speech.SpeechAmountParseResult
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
 import com.radwan.abosmra.ui.theme.DebtRed
@@ -509,6 +510,7 @@ fun AddDebtScreenV12(
         ) {
             item {
                 V12FinanceHero(
+                    customerId = customer.id,
                     customerName = customer.name,
                     label = "الدين الحالي",
                     amount = previousBalance,
@@ -828,6 +830,7 @@ fun AddPaymentScreenV12(
         ) {
             item {
                 V12FinanceHero(
+                    customerId = customer.id,
                     customerName = customer.name,
                     label = "الدين الحالي",
                     amount = currentBalance,
@@ -935,6 +938,7 @@ fun AddPaymentScreenV12(
 
 @Composable
 private fun V12FinanceHero(
+    customerId: String,
     customerName: String,
     label: String,
     amount: Long,
@@ -948,10 +952,28 @@ private fun V12FinanceHero(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(customerName, style = MaterialTheme.typography.titleLarge)
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(11.dp)
+            ) {
+                CustomerAvatar(
+                    customerId = customerId,
+                    size = 48.dp
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        customerName,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Text(
                 formatMoney(amount),
                 style = MaterialTheme.typography.headlineMedium,
