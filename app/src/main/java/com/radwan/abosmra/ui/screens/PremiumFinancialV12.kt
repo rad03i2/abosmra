@@ -762,6 +762,42 @@ private fun V12SuccessDialog(
 }
 
 @Composable
+private fun rememberFinancialFeedbackHandler(
+    vm: GasLedgerViewModel
+): (FinancialOperationReceipt) -> Unit {
+    val context = LocalContext.current
+    var pendingNotification by remember {
+        mutableStateOf<FinancialOperationReceipt?>(null)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val receipt = pendingNotification
+        pendingNotification = null
+        if (granted && receipt != null) {
+            vm.scheduleFinancialOperationNotification(receipt)
+        }
+    }
+
+    return { receipt ->
+        vm.playFinancialSuccessSound(receipt.kind)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingNotification = receipt
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else if (FinancialOperationFeedback.canPostNotifications(context)) {
+            vm.scheduleFinancialOperationNotification(receipt)
+        }
+    }
+}
+
+@Composable
 private fun V12MissingCustomer(onBack: () -> Unit) {
     Scaffold(topBar = { ScreenTopBar("الزبون", onBack) }) { padding ->
         Box(
