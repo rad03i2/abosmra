@@ -400,7 +400,7 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                     "كشف الحساب",
                     "المشاركة متاحة من داخل ملف كل زبون"
                 ) {
-                    message = "افتح الزبون ثم كشف الحساب للمشاركة كصورة أو PDF."
+                    message = "افتح الزبون ثم كشف الحساب للمشاركة كصورة عبر WhatsApp أو الرسائل."
                 }
             }
             item {
@@ -419,6 +419,9 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                     "الدينار العراقي • د.ع"
                 ) { }
             }
+
+            item { SectionTitle("الخط والمظهر") }
+            item { TypographySettingsCardV12(vm) }
 
             item { SectionTitle("الأصوات والتأكيدات") }
             item { FinancialSoundSettingsCardV28(vm) }
