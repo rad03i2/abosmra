@@ -3,4 +3,7 @@
     <cache-path
         name="shared_statements"
         path="shared/" />
+    <cache-path
+        name="customer_photos_tmp"
+        path="customer_photos_tmp/" />
 </paths>

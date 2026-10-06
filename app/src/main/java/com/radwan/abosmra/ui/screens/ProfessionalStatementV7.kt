@@ -134,21 +134,35 @@ fun StatementScreenV7(
 
     fun shareImage(whatsappOnly: Boolean) {
         if (working) return
+        if (whatsappOnly && customer.phone.isNullOrBlank()) {
+            statusMessage = "لا يوجد رقم هاتف محفوظ لهذا الزبون لفتح محادثته على WhatsApp."
+            return
+        }
+
         scope.launch {
             working = true
             val result = runCatching {
                 val file = withContext(Dispatchers.IO) {
                     StatementDocumentRenderer.createPng(context, snapshot)
                 }
-                StatementShare.shareImage(
-                    context,
-                    file,
-                    StatementDocumentRenderer.message(snapshot),
-                    whatsappOnly
-                )
+                if (whatsappOnly) {
+                    StatementShare.shareImageToWhatsappContact(
+                        context = context,
+                        file = file,
+                        message = StatementDocumentRenderer.message(snapshot),
+                        phone = customer.phone.orEmpty()
+                    )
+                } else {
+                    StatementShare.shareImage(
+                        context,
+                        file,
+                        StatementDocumentRenderer.message(snapshot),
+                        false
+                    )
+                }
             }
             working = false
-            if (result.isFailure) statusMessage = "تعذر تجهيز صورة كشف الحساب للمشاركة."
+            if (result.isFailure) statusMessage = "تعذر فتح WhatsApp أو تجهيز صورة كشف الحساب."
         }
     }
 
@@ -208,7 +222,13 @@ fun StatementScreenV7(
                     } else {
                         Icon(Icons.Rounded.Share, contentDescription = null)
                         Spacer(Modifier.size(8.dp))
-                        Text("مشاركة الصورة عبر WhatsApp")
+                        Text(
+                            if (customer.phone.isNullOrBlank()) {
+                                "مشاركة عبر WhatsApp"
+                            } else {
+                                "إرسال الكشف إلى " + customer.name
+                            }
+                        )
                     }
                 }
             }
@@ -364,7 +384,11 @@ fun StatementScreenV7(
 
             item {
                 Text(
-                    "آخر العمليات",
+                    if (balance > 0L) {
+                        "الحركات المرتبطة بالرصيد الحالي"
+                    } else {
+                        "آخر العمليات"
+                    },
                     style = MaterialTheme.typography.titleLarge
                 )
             }
@@ -377,7 +401,14 @@ fun StatementScreenV7(
                     )
                 }
             } else {
-                items(entries.take(6), key = { it.id }) { entry ->
+                items(
+                    if (balance > 0L) {
+                        StatementDocumentRenderer.currentCycleEntries(snapshot).take(6)
+                    } else {
+                        entries.take(6)
+                    },
+                    key = { it.id }
+                ) { entry ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.large,

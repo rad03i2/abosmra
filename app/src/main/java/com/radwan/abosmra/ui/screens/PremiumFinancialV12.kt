@@ -127,7 +127,7 @@ fun AddDebtScreenV12(
     val lifecycleOwner = LocalLifecycleOwner.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
+    val financialFeedback = rememberFinancialFeedbackHandler(vm)
     val speechRecognizer = remember(context) { DebtSpeechRecognizer(context) }
     val previousBalance = vm.balance(customer)
 
@@ -343,7 +343,7 @@ fun AddDebtScreenV12(
                     savedAmount = draft.amount
                     pendingDuplicate = null
                     pendingDuplicateDraft = null
-                    sendFinancialFeedback(
+                    financialFeedback.onSaved(
                         FinancialOperationReceipt(
                             kind = FinancialOperationKind.DEBT,
                             customerId = customer.id,
@@ -456,7 +456,10 @@ fun AddDebtScreenV12(
         V12SuccessDialog(
             title = "تم تسجيل الدين",
             message = "أضيف " + formatMoney(saved) + " إلى حساب " + customer.name,
-            onDone = onBack
+            onDone = {
+                financialFeedback.onConfirmed()
+                onBack()
+            }
         )
     }
 
@@ -717,7 +720,7 @@ fun AddPaymentScreenV12(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    val sendFinancialFeedback = rememberFinancialFeedbackHandler(vm)
+    val financialFeedback = rememberFinancialFeedbackHandler(vm)
     val currentBalance = vm.balance(customer)
     var amountText by rememberSaveable { mutableStateOf("") }
     var isSaving by rememberSaveable { mutableStateOf(false) }
@@ -749,7 +752,7 @@ fun AddPaymentScreenV12(
             isSaving = false
             if (success) {
                 savedAmount = amount
-                sendFinancialFeedback(
+                financialFeedback.onSaved(
                     FinancialOperationReceipt(
                         kind = if (amount == currentBalance) {
                             FinancialOperationKind.FULL_SETTLEMENT
@@ -776,7 +779,10 @@ fun AddPaymentScreenV12(
             } else {
                 "تم تحصيل " + formatMoney(saved) + " من " + customer.name
             },
-            onDone = onBack
+            onDone = {
+                financialFeedback.onConfirmed()
+                onBack()
+            }
         )
     }
 
@@ -1089,11 +1095,13 @@ private fun V12EquationLine(
 }
 
 @Composable
-private fun V12SuccessDialog(
+internal fun V12SuccessDialog(
     title: String,
     message: String,
     onDone: () -> Unit
 ) {
+    var confirmed by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = {}) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1131,7 +1139,13 @@ private fun V12SuccessDialog(
                 )
 
                 Button(
-                    onClick = onDone,
+                    onClick = {
+                        if (!confirmed) {
+                            confirmed = true
+                            onDone()
+                        }
+                    },
+                    enabled = !confirmed,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = MaterialTheme.shapes.large
                 ) {
@@ -1192,40 +1206,59 @@ private fun V28AnimatedSuccessMark() {
     }
 }
 
+private data class FinancialFeedbackController(
+    val onSaved: (FinancialOperationReceipt) -> Unit,
+    val onConfirmed: () -> Unit
+)
+
 @Composable
 private fun rememberFinancialFeedbackHandler(
     vm: GasLedgerViewModel
-): (FinancialOperationReceipt) -> Unit {
+): FinancialFeedbackController {
     val context = LocalContext.current
     var pendingNotification by remember {
         mutableStateOf<FinancialOperationReceipt?>(null)
+    }
+    var notificationPermissionGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+        )
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        val receipt = pendingNotification
-        pendingNotification = null
-        if (granted && receipt != null) {
-            vm.scheduleFinancialOperationNotification(receipt)
-        }
+        notificationPermissionGranted = granted
     }
 
-    return { receipt ->
-        vm.playFinancialSuccessSound()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+    return FinancialFeedbackController(
+        onSaved = { receipt ->
             pendingNotification = receipt
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else if (FinancialOperationFeedback.canPostNotifications(context)) {
-            vm.scheduleFinancialOperationNotification(receipt)
+            vm.playFinancialSuccessSound()
+
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !notificationPermissionGranted
+            ) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        },
+        onConfirmed = {
+            val receipt = pendingNotification
+            pendingNotification = null
+            if (
+                receipt != null &&
+                notificationPermissionGranted &&
+                FinancialOperationFeedback.canPostNotifications(context)
+            ) {
+                vm.scheduleFinancialOperationNotification(receipt)
+            }
         }
-    }
+    )
 }
 
 @Composable
