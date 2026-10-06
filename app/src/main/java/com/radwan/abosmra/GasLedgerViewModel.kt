@@ -3,6 +3,7 @@ package com.radwan.abosmra
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.radwan.abosmra.customer.CustomerPhotoStore
 import com.radwan.abosmra.data.AppRepository
 import com.radwan.abosmra.data.AutoBackupInterval
 import com.radwan.abosmra.data.BackupPreview
@@ -49,6 +50,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private val reminders = ReminderStore(application)
     private val reportRepository = ReportRepository(application)
     private val financialFeedback = FinancialFeedbackStore(application)
+    private val customerPhotos = CustomerPhotoStore(application)
 
     private val _securityState = MutableStateFlow(security.state())
     val securityState: StateFlow<SecurityState> = _securityState.asStateFlow()
@@ -162,6 +164,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     suspend fun deleteCustomer(customerId: String): MutationResult = writeMutex.withLock {
         val result = repository.deleteCustomer(customerId)
         if (result.success) {
+            customerPhotos.remove(customerId)
             _customers.value = _customers.value.filterNot { it.id == customerId }
             rebuildIndexes()
             loadAdvancedReport(_advancedReport.value.period)
