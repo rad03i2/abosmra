@@ -213,9 +213,13 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
             text = { Text("سيتم حذف البيانات الحالية وإعادة بيانات العرض الأولية.") },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.resetDemoData()
-                    showResetConfirm = false
-                    message = "تمت إعادة البيانات التجريبية."
+                    scope.launch {
+                        working = true
+                        vm.resetDemoData()
+                        working = false
+                        showResetConfirm = false
+                        message = "تمت إعادة البيانات التجريبية."
+                    }
                 }) { Text("إعادة") }
             },
             dismissButton = {
@@ -347,9 +351,11 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                                 FilterChip(
                                     selected = autoInterval == interval,
                                     onClick = {
-                                        autoInterval = interval
-                                        vm.setAutoBackupInterval(interval)
-                                        lastBackupAt = vm.lastBackupAt()
+                                        scope.launch {
+                                            autoInterval = interval
+                                            vm.setAutoBackupInterval(interval)
+                                            lastBackupAt = vm.lastBackupAt()
+                                        }
                                     },
                                     label = { Text(intervalLabel(interval)) }
                                 )
@@ -435,7 +441,7 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp)) {
                             Text("دفتر الغاز", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "الإصدار 2.2.0 • تجربة استخدام ميدانية",
+                                "الإصدار 2.3.0 • أداء واستقرار",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

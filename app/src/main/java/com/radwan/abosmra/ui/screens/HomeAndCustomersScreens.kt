@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatDate
 import com.radwan.abosmra.util.formatMoney
 import com.radwan.abosmra.util.normalizeIraqPhone
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -412,6 +414,7 @@ fun AddCustomerScreen(
     onBack: () -> Unit,
     onSaved: (String) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var area by remember { mutableStateOf("") }
@@ -487,15 +490,17 @@ fun AddCustomerScreen(
                 onClick = {
                     if (name.isBlank()) showError = true
                     else {
-                        val customer = vm.addCustomer(
-                            name = name,
-                            phone = phone.takeIf { it.isNotBlank() },
-                            area = area,
-                            address = address,
-                            openingDebt = openingDebt.toLongOrNull() ?: 0L,
-                            notes = notes
-                        )
-                        onSaved(customer.id)
+                        scope.launch {
+                            val customer = vm.addCustomer(
+                                name = name,
+                                phone = phone.takeIf { it.isNotBlank() },
+                                area = area,
+                                address = address,
+                                openingDebt = openingDebt.toLongOrNull() ?: 0L,
+                                notes = notes
+                            )
+                            onSaved(customer.id)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),

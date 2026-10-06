@@ -12,8 +12,8 @@ android {
         applicationId = "com.radwan.abosmra"
         minSdk = 26
         targetSdk = 37
-        versionCode = 13
-        versionName = "2.2.0"
+        versionCode = 14
+        versionName = "2.3.0"
     }
 
     buildFeatures {
@@ -53,6 +53,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     val roomVersion = "3.0.3"
     implementation("androidx.room3:room3-runtime:$roomVersion")

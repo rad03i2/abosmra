@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +63,7 @@ import com.radwan.abosmra.ui.components.SectionTitle
 import com.radwan.abosmra.ui.theme.DebtRed
 import com.radwan.abosmra.ui.theme.PaidGreen
 import com.radwan.abosmra.util.formatMoney
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -302,6 +304,7 @@ private fun V3InsightLine(label: String, value: String) {
 @Composable
 fun SettingsScreenV3(vm: GasLedgerViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showResetConfirm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -312,9 +315,11 @@ fun SettingsScreenV3(vm: GasLedgerViewModel) {
             text = { Text("سيتم حذف البيانات الحالية وإعادة بيانات العرض الأولية.") },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.resetDemoData()
-                    showResetConfirm = false
-                    message = "تمت إعادة البيانات التجريبية."
+                    scope.launch {
+                        vm.resetDemoData()
+                        showResetConfirm = false
+                        message = "تمت إعادة البيانات التجريبية."
+                    }
                 }) { Text("إعادة") }
             },
             dismissButton = {

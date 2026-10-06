@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +73,7 @@ import com.radwan.abosmra.util.daysSince
 import com.radwan.abosmra.util.formatDate
 import com.radwan.abosmra.util.formatMoney
 import com.radwan.abosmra.util.normalizeIraqPhone
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -501,6 +503,7 @@ fun FollowUpScreen(
 @Composable
 fun SettingsScreen(vm: GasLedgerViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showResetConfirm by remember { mutableStateOf(false) }
     var infoMessage by remember { mutableStateOf<String?>(null) }
 
@@ -511,9 +514,11 @@ fun SettingsScreen(vm: GasLedgerViewModel) {
             text = { Text("سيتم حذف البيانات الحالية وإعادة بيانات العرض الأولية.") },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.resetDemoData()
-                    showResetConfirm = false
-                    infoMessage = "تمت إعادة البيانات التجريبية."
+                    scope.launch {
+                        vm.resetDemoData()
+                        showResetConfirm = false
+                        infoMessage = "تمت إعادة البيانات التجريبية."
+                    }
                 }) { Text("إعادة") }
             },
             dismissButton = { TextButton(onClick = { showResetConfirm = false }) { Text("إلغاء") } }
@@ -656,3 +661,4 @@ private fun SettingsRow(
         }
     }
 }
+
