@@ -17,10 +17,15 @@ import com.radwan.abosmra.data.ReportRepository
 import com.radwan.abosmra.security.AppSecurityStore
 import com.radwan.abosmra.security.SecurityMutationResult
 import com.radwan.abosmra.security.SecurityState
+import com.radwan.abosmra.notifications.FinancialOperationFeedback
+import com.radwan.abosmra.notifications.FinancialOperationKind
+import com.radwan.abosmra.notifications.FinancialOperationReceipt
 import com.radwan.abosmra.notifications.ReminderFrequency
 import com.radwan.abosmra.notifications.ReminderScheduler
 import com.radwan.abosmra.notifications.ReminderSettings
 import com.radwan.abosmra.notifications.ReminderStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
@@ -362,6 +367,22 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun runReminderCheckNow() {
         ReminderScheduler.runNow(app)
+    }
+
+    fun playFinancialSuccessSound(kind: FinancialOperationKind) {
+        viewModelScope.launch(Dispatchers.Default) {
+            FinancialOperationFeedback.playComfortableMoneySound(kind)
+        }
+    }
+
+    fun scheduleFinancialOperationNotification(
+        receipt: FinancialOperationReceipt,
+        delayMillis: Long = 2_000L
+    ) {
+        viewModelScope.launch {
+            delay(delayMillis.coerceAtLeast(0L))
+            FinancialOperationFeedback.postNotification(app, receipt)
+        }
     }
 
     fun refreshReminderSettings() {
