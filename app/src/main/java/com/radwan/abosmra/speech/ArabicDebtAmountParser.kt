@@ -99,6 +99,29 @@ object ArabicDebtAmountParser {
             normalized.contains("د ع")
     }
 
+    fun parseAlternatives(texts: List<String>): SpeechAmountParseResult {
+        if (texts.isEmpty()) return SpeechAmountParseResult.NotFound
+
+        val parsed = texts
+            .map(::parse)
+
+        if (parsed.any { it is SpeechAmountParseResult.Ambiguous }) {
+            return SpeechAmountParseResult.Ambiguous
+        }
+
+        val amounts = parsed
+            .filterIsInstance<SpeechAmountParseResult.Success>()
+            .map { it.amount }
+            .filter { it > 0L }
+            .distinct()
+
+        return when {
+            amounts.isEmpty() -> SpeechAmountParseResult.NotFound
+            amounts.size == 1 -> SpeechAmountParseResult.Success(amounts.single())
+            else -> SpeechAmountParseResult.Ambiguous
+        }
+    }
+
     fun parse(text: String): SpeechAmountParseResult {
         val normalized = normalize(text)
         if (normalized.isBlank()) return SpeechAmountParseResult.NotFound
