@@ -94,7 +94,7 @@ class AppRepository(context: Context) {
         )
 
         val customerEntries = dao.getEntriesForCustomer(customerId).map(LedgerEntryEntity::toModel)
-        if (!ledgerIsValid(updated, customerEntries)) {
+        if (!LedgerRules.isChronologicallyValid(updated, customerEntries)) {
             return MutationResult(
                 false,
                 "هذا التعديل يجعل أحد التحصيلات القديمة أكبر من الرصيد المتاح وقتها."
@@ -194,7 +194,7 @@ class AppRepository(context: Context) {
             .map(LedgerEntryEntity::toModel)
             .map { if (it.id == entryId) updated else it }
 
-        if (!ledgerIsValid(customer, candidateEntries)) {
+        if (!LedgerRules.isChronologicallyValid(customer, candidateEntries)) {
             return MutationResult(
                 false,
                 "لا يمكن حفظ التعديل لأنه يجعل تحصيلًا لاحقًا أكبر من الرصيد المتاح."
@@ -217,7 +217,7 @@ class AppRepository(context: Context) {
             .map(LedgerEntryEntity::toModel)
             .filter { it.id != entryId }
 
-        if (!ledgerIsValid(customer, candidateEntries)) {
+        if (!LedgerRules.isChronologicallyValid(customer, candidateEntries)) {
             return MutationResult(
                 false,
                 "لا يمكن حذف هذه الحركة لأن حذفها يجعل سجل الحساب غير صالح محاسبيًا."
@@ -351,15 +351,6 @@ class AppRepository(context: Context) {
             ?.sortedByDescending { it.lastModified() }
             ?.drop(keep)
             ?.forEach { runCatching { it.delete() } }
-    }
-
-    private fun ledgerIsValid(customer: Customer, customerEntries: List<LedgerEntry>): Boolean {
-        var running = customer.openingDebt
-        customerEntries.sortedWith(compareBy<LedgerEntry> { it.createdAt }.thenBy { it.id }).forEach { entry ->
-            running += if (entry.type == EntryType.DEBT) entry.amount else -entry.amount
-            if (running < 0L) return false
-        }
-        return true
     }
 
     private suspend fun loadRoomOrMigrateLegacy() {

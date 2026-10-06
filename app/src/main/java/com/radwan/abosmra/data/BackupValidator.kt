@@ -60,21 +60,10 @@ object BackupValidator {
         }
 
         customers.forEach { customer ->
-            var running = customer.openingDebt
-            entries.asSequence()
-                .filter { it.customerId == customer.id }
-                .sortedWith(compareBy<LedgerEntry> { it.createdAt }.thenBy { it.id })
-                .forEach { entry ->
-                    running = if (entry.type == EntryType.DEBT) {
-                        Math.addExact(running, entry.amount)
-                    } else {
-                        Math.subtractExact(running, entry.amount)
-                    }
-                    require(running >= 0L) {
-                        "سجل الحساب للزبون " + customer.name +
-                            " يحتوي على تحصيل أكبر من الرصيد المتاح."
-                    }
-                }
+            require(LedgerRules.isChronologicallyValid(customer, entries)) {
+                "سجل الحساب للزبون " + customer.name +
+                    " يحتوي على تحصيل أكبر من الرصيد المتاح."
+            }
         }
     }
 }
