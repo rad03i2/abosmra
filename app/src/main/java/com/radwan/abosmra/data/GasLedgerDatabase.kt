@@ -16,6 +16,7 @@ import androidx.room3.RoomDatabase
 import androidx.room3.Transaction
 import androidx.room3.Update
 import androidx.sqlite.driver.AndroidSQLiteDriver
+import kotlinx.coroutines.flow.Flow
 
 @Entity(
     tableName = "customers",
@@ -75,8 +76,23 @@ interface GasLedgerDao {
     @Query("SELECT * FROM customers ORDER BY created_at DESC")
     suspend fun getCustomers(): List<CustomerEntity>
 
+    @Query("SELECT * FROM customers ORDER BY created_at DESC")
+    fun observeCustomers(): Flow<List<CustomerEntity>>
+
+    @Query("SELECT * FROM customers WHERE id = :customerId LIMIT 1")
+    suspend fun getCustomerById(customerId: String): CustomerEntity?
+
     @Query("SELECT * FROM ledger_entries ORDER BY created_at DESC")
     suspend fun getEntries(): List<LedgerEntryEntity>
+
+    @Query("SELECT * FROM ledger_entries ORDER BY created_at DESC")
+    fun observeEntries(): Flow<List<LedgerEntryEntity>>
+
+    @Query("SELECT * FROM ledger_entries WHERE customer_id = :customerId ORDER BY created_at ASC")
+    suspend fun getEntriesForCustomer(customerId: String): List<LedgerEntryEntity>
+
+    @Query("SELECT * FROM ledger_entries WHERE id = :entryId LIMIT 1")
+    suspend fun getEntryById(entryId: String): LedgerEntryEntity?
 
     @Query("SELECT COUNT(*) FROM customers")
     suspend fun customerCount(): Int
