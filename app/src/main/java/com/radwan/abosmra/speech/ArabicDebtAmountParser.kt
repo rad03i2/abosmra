@@ -8,7 +8,7 @@ sealed interface SpeechAmountParseResult {
 
 object ArabicDebtAmountParser {
     private val diacritics = Regex("[\u064B-\u065F\u0670]")
-    private val punctuation = Regex("[،؛:!?؟()\[\]{}"'ـ]")
+    private val punctuation = Regex("""[،؛:!?؟()\[\]{}"'ـ]""")
     private val numericLiteral = Regex("^[0-9]+$")
 
     private val simpleValues = mapOf(
