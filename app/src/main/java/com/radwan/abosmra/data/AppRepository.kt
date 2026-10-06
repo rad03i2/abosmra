@@ -79,7 +79,7 @@ class AppRepository(context: Context) {
         openingDebt: Long,
         notes: String
     ): MutationResult {
-        val current = customersCache.firstOrNull { it.id == customerId }
+        val current = dao.getCustomerById(customerId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الزبون.")
         if (name.isBlank()) return MutationResult(false, "اسم الزبون مطلوب.")
         if (openingDebt < 0L) return MutationResult(false, "الدين السابق لا يمكن أن يكون سالبًا.")
@@ -93,7 +93,7 @@ class AppRepository(context: Context) {
             notes = notes.trim()
         )
 
-        val customerEntries = entriesCache.filter { it.customerId == customerId }
+        val customerEntries = dao.getEntriesForCustomer(customerId).map(LedgerEntryEntity::toModel)
         if (!ledgerIsValid(updated, customerEntries)) {
             return MutationResult(
                 false,
@@ -108,9 +108,9 @@ class AppRepository(context: Context) {
     }
 
     suspend fun deleteCustomer(customerId: String): MutationResult {
-        val customer = customersCache.firstOrNull { it.id == customerId }
+        val customer = dao.getCustomerById(customerId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الزبون.")
-        val customerEntries = entriesCache.filter { it.customerId == customerId }
+        val customerEntries = dao.getEntriesForCustomer(customerId).map(LedgerEntryEntity::toModel)
 
         if (customer.openingDebt != 0L) {
             return MutationResult(false, "لا يمكن حذف الزبون قبل تصفير الدين السابق.")
@@ -133,7 +133,7 @@ class AppRepository(context: Context) {
         details: String = ""
     ): LedgerEntry {
         require(amount > 0)
-        require(customersCache.any { it.id == customerId }) { "Customer not found" }
+        require(dao.getCustomerById(customerId) != null) { "Customer not found" }
 
         val entry = LedgerEntry(
             id = UUID.randomUUID().toString(),
@@ -151,8 +151,10 @@ class AppRepository(context: Context) {
     }
 
     suspend fun addPayment(customerId: String, amount: Long): LedgerEntry {
-        val customer = customersCache.first { it.id == customerId }
-        val balance = customerBalance(customer, entriesCache)
+        val customer = dao.getCustomerById(customerId)?.toModel()
+            ?: error("Customer not found")
+        val customerEntries = dao.getEntriesForCustomer(customerId).map(LedgerEntryEntity::toModel)
+        val balance = customerBalance(customer, customerEntries)
         require(amount in 1..balance) { "Payment must be within current balance" }
 
         val entry = LedgerEntry(
@@ -174,11 +176,11 @@ class AppRepository(context: Context) {
         bottlePrice: Long?,
         details: String
     ): MutationResult {
-        val current = entriesCache.firstOrNull { it.id == entryId }
+        val current = dao.getEntryById(entryId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الحركة.")
         if (amount <= 0L) return MutationResult(false, "المبلغ يجب أن يكون أكبر من صفر.")
 
-        val customer = customersCache.firstOrNull { it.id == current.customerId }
+        val customer = dao.getCustomerById(current.customerId)?.toModel()
             ?: return MutationResult(false, "تعذر العثور على الزبون المرتبط بالحركة.")
 
         val updated = current.copy(
@@ -188,8 +190,8 @@ class AppRepository(context: Context) {
             details = if (current.type == EntryType.DEBT) details.trim() else current.details
         )
 
-        val candidateEntries = entriesCache
-            .filter { it.customerId == current.customerId }
+        val candidateEntries = dao.getEntriesForCustomer(current.customerId)
+            .map(LedgerEntryEntity::toModel)
             .map { if (it.id == entryId) updated else it }
 
         if (!ledgerIsValid(customer, candidateEntries)) {
@@ -211,8 +213,9 @@ class AppRepository(context: Context) {
         val customer = customersCache.firstOrNull { it.id == current.customerId }
             ?: return MutationResult(false, "تعذر العثور على الزبون المرتبط بالحركة.")
 
-        val candidateEntries = entriesCache
-            .filter { it.customerId == current.customerId && it.id != entryId }
+        val candidateEntries = dao.getEntriesForCustomer(current.customerId)
+            .map(LedgerEntryEntity::toModel)
+            .filter { it.id != entryId }
 
         if (!ledgerIsValid(customer, candidateEntries)) {
             return MutationResult(
