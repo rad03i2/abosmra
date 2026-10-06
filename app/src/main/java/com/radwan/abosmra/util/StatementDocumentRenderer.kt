@@ -88,59 +88,133 @@ object StatementDocumentRenderer {
         "DaftarAlGas-" + safeName(snapshot.customer.name) + "-" +
             formatDate(snapshot.generatedAt).replace("/", "-") + ".pdf"
 
+    fun currentCycleEntries(snapshot: StatementSnapshot): List<LedgerEntry> {
+        if (snapshot.currentBalance <= 0L) return emptyList()
+
+        val ordered = snapshot.entries.sortedBy { it.createdAt }
+        var running = snapshot.customer.openingDebt.coerceAtLeast(0L)
+        var cycleStart = 0
+
+        ordered.forEachIndexed { index, entry ->
+            running = when (entry.type) {
+                EntryType.DEBT -> running + entry.amount
+                EntryType.PAYMENT -> (running - entry.amount).coerceAtLeast(0L)
+            }
+            if (running == 0L) cycleStart = index + 1
+        }
+
+        return ordered.drop(cycleStart).sortedByDescending { it.createdAt }
+    }
+
     private fun render(snapshot: StatementSnapshot): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-        canvas.drawColor(Color.WHITE)
+
+        canvas.drawColor(Color.rgb(250, 250, 247))
 
         fill.color = greenDark
-        canvas.drawRoundRect(54f, 54f, (WIDTH - 54).toFloat(), 320f, 42f, 42f, fill)
-        text(canvas, "دفتر الغاز", 90, 90, WIDTH - 180, 54f, Color.WHITE, true)
-        text(canvas, "كشف حساب الدين", 90, 162, WIDTH - 180, 32f, Color.WHITE)
+        canvas.drawRoundRect(46f, 46f, (WIDTH - 46).toFloat(), 330f, 46f, 46f, fill)
+
+        fill.color = Color.argb(28, 255, 255, 255)
+        canvas.drawCircle((WIDTH - 128).toFloat(), 112f, 84f, fill)
+        fill.color = Color.argb(22, 255, 255, 255)
+        canvas.drawCircle(126f, 286f, 116f, fill)
+
+        text(canvas, "دفتر الغاز", 84, 78, WIDTH - 168, 56f, Color.WHITE, true)
+        text(canvas, "كشف حساب الدين", 84, 154, WIDTH - 168, 31f, Color.WHITE)
         text(
             canvas,
-            "التاريخ: " + formatDate(snapshot.generatedAt),
-            90,
-            230,
-            WIDTH - 180,
-            26f,
-            Color.rgb(216, 236, 230)
+            "تاريخ الإصدار • " + formatDate(snapshot.generatedAt),
+            84,
+            214,
+            WIDTH - 168,
+            25f,
+            Color.rgb(211, 235, 228)
         )
 
-        var y = 366
-        section(canvas, "بيانات الزبون", y)
-        y += 58
-        info(canvas, "الاسم", snapshot.customer.name, y)
-        y += 52
-        if (!snapshot.customer.phone.isNullOrBlank()) {
-            info(canvas, "رقم الهاتف", snapshot.customer.phone.orEmpty(), y)
-            y += 52
-        }
-        if (snapshot.customer.area.isNotBlank()) {
-            info(canvas, "المنطقة", snapshot.customer.area, y)
-            y += 52
-        }
-
-        y += 18
-        fill.color = if (snapshot.currentBalance > 0) redSoft else greenSoft
+        val customerCardTop = 365
+        fill.color = Color.WHITE
         canvas.drawRoundRect(
-            70f,
-            y.toFloat(),
-            (WIDTH - 70).toFloat(),
-            (y + 202).toFloat(),
-            32f,
-            32f,
+            64f,
+            customerCardTop.toFloat(),
+            (WIDTH - 64).toFloat(),
+            (customerCardTop + 190).toFloat(),
+            34f,
+            34f,
             fill
         )
-        text(canvas, "الدين الحالي", 100, y + 28, WIDTH - 200, 30f, muted, false, Layout.Alignment.ALIGN_CENTER)
+
+        text(canvas, "الزبون", 92, customerCardTop + 28, 230, 23f, muted)
+        text(
+            canvas,
+            snapshot.customer.name,
+            310,
+            customerCardTop + 22,
+            WIDTH - 402,
+            34f,
+            ink,
+            true
+        )
+
+        val secondary = buildList {
+            snapshot.customer.phone?.takeIf { it.isNotBlank() }?.let { add(it) }
+            snapshot.customer.area.takeIf { it.isNotBlank() }?.let { add(it) }
+        }.joinToString("  •  ")
+
+        if (secondary.isNotBlank()) {
+            text(
+                canvas,
+                secondary,
+                92,
+                customerCardTop + 91,
+                WIDTH - 184,
+                25f,
+                muted
+            )
+        }
+
+        fill.color = line
+        canvas.drawRoundRect(
+            92f,
+            (customerCardTop + 148).toFloat(),
+            (WIDTH - 92).toFloat(),
+            (customerCardTop + 151).toFloat(),
+            2f,
+            2f,
+            fill
+        )
+
+        val balanceTop = 590
+        fill.color = if (snapshot.currentBalance > 0) redSoft else greenSoft
+        canvas.drawRoundRect(
+            64f,
+            balanceTop.toFloat(),
+            (WIDTH - 64).toFloat(),
+            (balanceTop + 286).toFloat(),
+            42f,
+            42f,
+            fill
+        )
+
+        text(
+            canvas,
+            "الدين الحالي",
+            92,
+            balanceTop + 36,
+            WIDTH - 184,
+            30f,
+            muted,
+            false,
+            Layout.Alignment.ALIGN_CENTER
+        )
         text(
             canvas,
             formatMoney(snapshot.currentBalance),
-            100,
-            y + 78,
-            WIDTH - 200,
-            58f,
+            92,
+            balanceTop + 94,
+            WIDTH - 184,
+            72f,
             if (snapshot.currentBalance > 0) red else green,
             true,
             Layout.Alignment.ALIGN_CENTER
@@ -148,55 +222,141 @@ object StatementDocumentRenderer {
         text(
             canvas,
             if (snapshot.currentBalance > 0) "حساب مفتوح" else "الحساب مسدد بالكامل",
-            100,
-            y + 150,
-            WIDTH - 200,
-            25f,
+            92,
+            balanceTop + 205,
+            WIDTH - 184,
+            27f,
             if (snapshot.currentBalance > 0) red else green,
             true,
             Layout.Alignment.ALIGN_CENTER
         )
 
-        y += 235
-        val gap = 24
-        val cardWidth = (WIDTH - 140 - gap) / 2
-        mini(canvas, 70, y, cardWidth, "إجمالي الديون", formatMoney(snapshot.totalDebts), redSoft, red)
-        mini(canvas, 70 + cardWidth + gap, y, cardWidth, "إجمالي المدفوع", formatMoney(snapshot.totalPaid), greenSoft, green)
+        val summaryTop = 914
+        val gap = 22
+        val cardWidth = (WIDTH - 128 - gap) / 2
+        mini(
+            canvas,
+            64,
+            summaryTop,
+            cardWidth,
+            "إجمالي الديون",
+            formatMoney(snapshot.totalDebts),
+            Color.WHITE,
+            red
+        )
+        mini(
+            canvas,
+            64 + cardWidth + gap,
+            summaryTop,
+            cardWidth,
+            "إجمالي المدفوع",
+            formatMoney(snapshot.totalPaid),
+            Color.WHITE,
+            green
+        )
 
-        y += 148
-        section(canvas, "آخر العمليات", y)
-        y += 56
-        val recent = snapshot.entries.sortedByDescending { it.createdAt }.take(6)
-        if (recent.isEmpty()) {
-            text(canvas, "لا توجد عمليات مسجلة.", 80, y + 16, WIDTH - 160, 28f, muted)
-            y += 72
+        var y = 1078
+        text(
+            canvas,
+            if (snapshot.currentBalance > 0) {
+                "الحركات التي تكوّن الرصيد الحالي"
+            } else {
+                "حالة الحساب"
+            },
+            64,
+            y,
+            WIDTH - 128,
+            31f,
+            ink,
+            true
+        )
+        y += 58
+
+        val currentCycle = currentCycleEntries(snapshot).take(6)
+        if (snapshot.currentBalance <= 0L) {
+            fill.color = greenSoft
+            canvas.drawRoundRect(
+                64f,
+                y.toFloat(),
+                (WIDTH - 64).toFloat(),
+                (y + 122).toFloat(),
+                28f,
+                28f,
+                fill
+            )
+            text(
+                canvas,
+                "لا يوجد دين حالي. الحساب مسدد بالكامل.",
+                92,
+                y + 37,
+                WIDTH - 184,
+                28f,
+                greenDark,
+                true,
+                Layout.Alignment.ALIGN_CENTER
+            )
+            y += 150
+        } else if (currentCycle.isEmpty()) {
+            fill.color = Color.WHITE
+            canvas.drawRoundRect(
+                64f,
+                y.toFloat(),
+                (WIDTH - 64).toFloat(),
+                (y + 110).toFloat(),
+                28f,
+                28f,
+                fill
+            )
+            text(
+                canvas,
+                "الرصيد الحالي ناتج عن الدين السابق المسجل للزبون.",
+                90,
+                y + 32,
+                WIDTH - 180,
+                27f,
+                muted,
+                true,
+                Layout.Alignment.ALIGN_CENTER
+            )
+            y += 138
         } else {
-            recent.forEach {
-                movement(canvas, it, y)
-                y += 104
+            currentCycle.forEach { entry ->
+                movement(canvas, entry, y)
+                y += 98
             }
         }
 
-        val footerY = maxOf(y + 24, HEIGHT - 132)
-        fill.color = Color.rgb(247, 248, 246)
+        val footerY = maxOf(y + 24, HEIGHT - 142)
+        fill.color = Color.WHITE
         canvas.drawRoundRect(
-            70f,
+            64f,
             footerY.toFloat(),
-            (WIDTH - 70).toFloat(),
-            (HEIGHT - 48).toFloat(),
-            28f,
-            28f,
+            (WIDTH - 64).toFloat(),
+            (HEIGHT - 42).toFloat(),
+            30f,
+            30f,
             fill
         )
         text(
             canvas,
             "شكرًا لحسن تعاملكم 🌹",
-            100,
-            footerY + 28,
-            WIDTH - 200,
+            92,
+            footerY + 29,
+            WIDTH - 184,
             29f,
             greenDark,
             true,
+            Layout.Alignment.ALIGN_CENTER
+        )
+        text(
+            canvas,
+            "تم إنشاء هذا الكشف من تطبيق دفتر الغاز",
+            92,
+            footerY + 72,
+            WIDTH - 184,
+            21f,
+            muted,
+            false,
             Layout.Alignment.ALIGN_CENTER
         )
 
