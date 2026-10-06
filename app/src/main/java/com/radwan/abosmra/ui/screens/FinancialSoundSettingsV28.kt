@@ -32,7 +32,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,7 +108,7 @@ internal fun FinancialSoundSettingsContent(
     onTestNotification: () -> Unit,
     notificationMessage: String? = null
 ) {
-    var expandedGroup by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedGroup by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SoundGroupCardV28(
             title = "صوت نجاح العملية",

@@ -26,8 +26,8 @@ class FinancialSoundSettingsTest {
     private var popupTests = 0
     private var openedSettings = 0
 
-    private fun showSettings() {
-        composeRule.setContent {
+    private fun showSettings(restoration: StateRestorationTester? = null) {
+        val content: @androidx.compose.runtime.Composable () -> Unit = {
             MaterialTheme {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     FinancialSoundSettingsContent(settings.value,
@@ -38,6 +38,7 @@ class FinancialSoundSettingsTest {
                 }
             }
         }
+        if (restoration == null) composeRule.setContent(content) else restoration.setContent(content)
     }
 
     @Test fun proposals_startHiddenAndCanBeCollapsedAgain() {
@@ -62,6 +63,17 @@ class FinancialSoundSettingsTest {
         assertEquals(1, operationSelections)
         assertEquals(OperationSoundPreset.GLASS, settings.value.operationSound)
         assertEquals(NotificationSoundPreset.CASH_PING, settings.value.notificationSound)
+    }
+
+    @Test fun restoredSettings_keepSoundSelectionButCloseProposals() {
+        val restoration = StateRestorationTester(composeRule)
+        showSettings(restoration)
+        composeRule.onNodeWithText("صوت نجاح العملية").performClick()
+        composeRule.onNodeWithText(OperationSoundPreset.GLASS.title).performScrollTo().performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithText(OperationSoundPreset.GLASS.title).assertDoesNotExist()
+        composeRule.onNodeWithText("المختار: " + OperationSoundPreset.GLASS.title).assertExists()
+        assertEquals(OperationSoundPreset.GLASS, settings.value.operationSound)
     }
 
     @Test fun openingPhoneSounds_closesSuccessSoundsAndExposesPopupControls() {
