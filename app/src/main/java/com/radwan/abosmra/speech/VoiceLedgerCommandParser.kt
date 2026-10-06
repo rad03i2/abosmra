@@ -70,8 +70,8 @@ object VoiceLedgerCommandParser {
 
     internal fun detectOperation(text: String): VoiceLedgerOperation? {
         val normalized = normalize(text)
-        val paymentHit = paymentWords.any { normalized.contains(normalize(it)) }
-        val debtHit = debtWords.any { normalized.contains(normalize(it)) }
+        val paymentHit = paymentWords.any { containsPhrase(normalized, it) }
+        val debtHit = debtWords.any { containsPhrase(normalized, it) }
 
         return when {
             paymentHit && !debtHit -> VoiceLedgerOperation.PAYMENT
@@ -110,6 +110,17 @@ object VoiceLedgerCommandParser {
         val bestScore = scored.maxOfOrNull { it.second } ?: return null
         val best = scored.filter { it.second == bestScore }
         return best.singleOrNull()?.first
+    }
+
+    private fun containsPhrase(
+        normalizedText: String,
+        phrase: String
+    ): Boolean {
+        val normalizedPhrase = normalize(phrase)
+        if (normalizedPhrase.isBlank()) return false
+        return Regex(
+            "(^|\\s)" + Regex.escape(normalizedPhrase) + "(\\s|$)"
+        ).containsMatchIn(normalizedText)
     }
 
     private fun normalize(value: String): String =
