@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  release-candidate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,21 +31,31 @@ jobs:
       - name: Run unit, Room and Compose tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: abosmra-test-reports
-          path: |
-            app/build/reports/tests/testDebugUnitTest/
-            app/build/test-results/testDebugUnitTest/
-          if-no-files-found: ignore
+      - name: Run release lint
+        run: gradle :app:lintRelease --stacktrace
 
       - name: Build optimized release APK
         run: gradle :app:assembleRelease --stacktrace
 
-      - name: Upload release APK
+      - name: Generate APK checksum
+        run: sha256sum app/build/outputs/apk/release/app-release.apk > app/build/outputs/apk/release/app-release.apk.sha256
+
+      - name: Upload QA reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: abosmra-release-test-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          name: abosmra-qa-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/lint-results-release.html
+            app/build/reports/lint-results-release.xml
+          if-no-files-found: ignore
+
+      - name: Upload release candidate APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: abosmra-v2.6.0-rc1-apk
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release.apk.sha256
