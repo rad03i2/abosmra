@@ -8,6 +8,8 @@ import com.radwan.abosmra.data.AutoBackupInterval
 import com.radwan.abosmra.data.BackupPreview
 import com.radwan.abosmra.data.BackupRestoreResult
 import com.radwan.abosmra.data.Customer
+import com.radwan.abosmra.data.DebtAnomalyWarning
+import com.radwan.abosmra.data.DebtCreateResult
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
 import com.radwan.abosmra.data.MutationResult
@@ -167,16 +169,36 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         result
     }
 
+    suspend fun debtAnomalyWarning(
+        customerId: String,
+        amount: Long
+    ): DebtAnomalyWarning? =
+        repository.debtAnomalyWarning(customerId, amount)
+
     suspend fun addDebt(
         customerId: String,
         amount: Long,
         bottles: Int?,
-        bottlePrice: Long?
-    ) = writeMutex.withLock {
-        val entry = repository.addDebt(customerId, amount, bottles, bottlePrice, "قناني غاز")
-        _entries.value = listOf(entry) + _entries.value.filterNot { it.id == entry.id }
-        rebuildIndexes()
-        loadAdvancedReport(_advancedReport.value.period)
+        bottlePrice: Long?,
+        allowRecentDuplicate: Boolean = false
+    ): DebtCreateResult = writeMutex.withLock {
+        val result = repository.addDebt(
+            customerId = customerId,
+            amount = amount,
+            bottles = bottles,
+            bottlePrice = bottlePrice,
+            details = "قناني غاز",
+            allowRecentDuplicate = allowRecentDuplicate
+        )
+
+        if (result is DebtCreateResult.Created) {
+            val entry = result.entry
+            _entries.value = listOf(entry) + _entries.value.filterNot { it.id == entry.id }
+            rebuildIndexes()
+            loadAdvancedReport(_advancedReport.value.period)
+        }
+
+        result
     }
 
     suspend fun addPayment(customerId: String, amount: Long): Boolean = writeMutex.withLock {
