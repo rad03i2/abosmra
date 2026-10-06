@@ -21,6 +21,7 @@ import com.radwan.abosmra.customer.CustomerPhotoStore
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
+import com.radwan.abosmra.ui.theme.TypographySettingsStore
 import java.io.File
 import java.io.FileOutputStream
 
@@ -100,8 +101,12 @@ object StatementDocumentRenderer {
             Bitmap.Config.ARGB_8888
         )
         val canvas = Canvas(bitmap)
+        val typographySettings = TypographySettingsStore(context).state()
         val baseTypeface = runCatching {
-            ResourcesCompat.getFont(context, R.font.cairo_variable)
+            ResourcesCompat.getFont(
+                context,
+                typographySettings.font.receiptFontRes
+            )
         }.getOrNull() ?: Typeface.DEFAULT
 
         val regular = Typeface.create(baseTypeface, Typeface.NORMAL)
