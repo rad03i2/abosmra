@@ -17,8 +17,11 @@ class AppRepository(context: Context) {
     private val prefs = appContext.getSharedPreferences("gas_ledger_data", Context.MODE_PRIVATE)
     private val dao = GasLedgerDatabase.get(appContext).dao()
 
-    private var customersCache: MutableList<Customer> = mutableListOf()
-    private var entriesCache: MutableList<LedgerEntry> = mutableListOf()
+    @Volatile
+    private var customersCache: List<Customer> = emptyList()
+
+    @Volatile
+    private var entriesCache: List<LedgerEntry> = emptyList()
 
     suspend fun initialize() {
         loadRoomOrMigrateLegacy()
@@ -29,7 +32,7 @@ class AppRepository(context: Context) {
         dao.observeCustomers()
             .map { rows ->
                 rows.map(CustomerEntity::toModel)
-                    .also { customersCache = it.toMutableList() }
+                    .also { customersCache = it }
             }
             .distinctUntilChanged()
 
@@ -37,7 +40,7 @@ class AppRepository(context: Context) {
         dao.observeEntries()
             .map { rows ->
                 rows.map(LedgerEntryEntity::toModel)
-                    .also { entriesCache = it.toMutableList() }
+                    .also { entriesCache = it }
             }
             .distinctUntilChanged()
 
@@ -62,7 +65,7 @@ class AppRepository(context: Context) {
             notes = notes.trim()
         )
         dao.insertCustomer(customer.toEntity())
-        customersCache.add(0, customer)
+        customersCache = listOf(customer) + customersCache.filterNot { it.id == customer.id }
         maybeCreateAutomaticBackup()
         return customer
     }
@@ -99,7 +102,7 @@ class AppRepository(context: Context) {
         }
 
         dao.updateCustomer(updated.toEntity())
-        customersCache = customersCache.map { if (it.id == customerId) updated else it }.toMutableList()
+        customersCache = customersCache.map { if (it.id == customerId) updated else it }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تحديث بيانات الزبون.")
     }
@@ -117,7 +120,7 @@ class AppRepository(context: Context) {
         }
 
         dao.deleteCustomerById(customerId)
-        customersCache.removeAll { it.id == customerId }
+        customersCache = customersCache.filterNot { it.id == customerId }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الزبون.")
     }
@@ -142,7 +145,7 @@ class AppRepository(context: Context) {
             details = details
         )
         dao.insertEntry(entry.toEntity())
-        entriesCache.add(0, entry)
+        entriesCache = listOf(entry) + entriesCache.filterNot { it.id == entry.id }
         maybeCreateAutomaticBackup()
         return entry
     }
@@ -159,7 +162,7 @@ class AppRepository(context: Context) {
             amount = amount
         )
         dao.insertEntry(entry.toEntity())
-        entriesCache.add(0, entry)
+        entriesCache = listOf(entry) + entriesCache.filterNot { it.id == entry.id }
         maybeCreateAutomaticBackup()
         return entry
     }
@@ -197,7 +200,7 @@ class AppRepository(context: Context) {
         }
 
         dao.updateEntry(updated.toEntity())
-        entriesCache = entriesCache.map { if (it.id == entryId) updated else it }.toMutableList()
+        entriesCache = entriesCache.map { if (it.id == entryId) updated else it }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم تعديل الحركة.")
     }
@@ -219,7 +222,7 @@ class AppRepository(context: Context) {
         }
 
         dao.deleteEntryById(entryId)
-        entriesCache.removeAll { it.id == entryId }
+        entriesCache = entriesCache.filterNot { it.id == entryId }
         maybeCreateAutomaticBackup()
         return MutationResult(true, "تم حذف الحركة.")
     }
@@ -230,8 +233,8 @@ class AppRepository(context: Context) {
             customers = customers.map(Customer::toEntity),
             entries = entries.map(LedgerEntry::toEntity)
         )
-        customersCache = customers.toMutableList()
-        entriesCache = entries.toMutableList()
+        customersCache = customers
+        entriesCache = entries
         prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
         maybeCreateAutomaticBackup(force = true)
     }
@@ -260,8 +263,8 @@ class AppRepository(context: Context) {
                 entries = payload.entries.map(LedgerEntry::toEntity)
             )
 
-            customersCache = payload.customers.toMutableList()
-            entriesCache = payload.entries.toMutableList()
+            customersCache = payload.customers
+            entriesCache = payload.entries
 
             val now = System.currentTimeMillis()
             prefs.edit()
@@ -362,8 +365,8 @@ class AppRepository(context: Context) {
         val alreadyInitialized = prefs.getBoolean(ROOM_INITIALIZED_KEY, false)
 
         if (dbCustomers.isNotEmpty() || dbEntries.isNotEmpty()) {
-            customersCache = dbCustomers.toMutableList()
-            entriesCache = dbEntries.toMutableList()
+            customersCache = dbCustomers
+            entriesCache = dbEntries
             if (!alreadyInitialized) {
                 prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
             }
@@ -371,8 +374,8 @@ class AppRepository(context: Context) {
         }
 
         if (alreadyInitialized) {
-            customersCache = mutableListOf()
-            entriesCache = mutableListOf()
+            customersCache = emptyList()
+            entriesCache = emptyList()
             return
         }
 
@@ -391,8 +394,8 @@ class AppRepository(context: Context) {
             customers = source.first.map(Customer::toEntity),
             entries = source.second.map(LedgerEntry::toEntity)
         )
-        customersCache = source.first.toMutableList()
-        entriesCache = source.second.toMutableList()
+        customersCache = source.first
+        entriesCache = source.second
         prefs.edit().putBoolean(ROOM_INITIALIZED_KEY, true).apply()
     }
 
