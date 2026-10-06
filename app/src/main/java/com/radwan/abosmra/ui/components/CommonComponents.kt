@@ -228,6 +228,7 @@ fun CustomerCard(
     balance: Long,
     onClick: () -> Unit,
     lastActivity: String? = null,
+    hideBalance: Boolean = false,
     trailing: @Composable (() -> Unit)? = null
 ) {
     Surface(
@@ -294,7 +295,7 @@ fun CustomerCard(
                     verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
-                        if (balance > 0) formatMoney(balance) else "مسدد",
+                        if (hideBalance) "•••• د.ع" else if (balance > 0) formatMoney(balance) else "مسدد",
                         color = if (balance > 0) DebtRed else PaidGreen,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -324,7 +325,8 @@ fun CustomerCard(
 fun TransactionRow(
     entry: LedgerEntry,
     showBalance: Long? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hideAmounts: Boolean = false
 ) {
     val isDebt = entry.type == EntryType.DEBT
 
@@ -365,7 +367,9 @@ fun TransactionRow(
             if (entry.bottles != null) {
                 Text(
                     entry.bottles.toString() + " قنينة" +
-                        (entry.bottlePrice?.let { " • " + formatMoney(it) + " للقنينة" } ?: ""),
+                        (entry.bottlePrice?.let {
+                            " • " + (if (hideAmounts) "•••• د.ع" else formatMoney(it)) + " للقنينة"
+                        } ?: ""),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -382,7 +386,8 @@ fun TransactionRow(
                 else MaterialTheme.colorScheme.primaryContainer
             ) {
                 Text(
-                    (if (isDebt) "+" else "-") + formatMoney(entry.amount),
+                    if (hideAmounts) "•••• د.ع"
+                    else (if (isDebt) "+" else "-") + formatMoney(entry.amount),
                     style = MaterialTheme.typography.labelLarge,
                     color = if (isDebt) DebtRed else PaidGreen,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
@@ -390,7 +395,7 @@ fun TransactionRow(
             }
             if (showBalance != null) {
                 Text(
-                    "الرصيد " + formatMoney(showBalance),
+                    "الرصيد " + if (hideAmounts) "•••• د.ع" else formatMoney(showBalance),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
