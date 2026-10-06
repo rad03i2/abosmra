@@ -1,7 +1,10 @@
 package com.radwan.abosmra
 
 import android.app.Activity
+import android.os.SystemClock
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Assessment
@@ -22,7 +25,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -147,6 +155,28 @@ fun GasLedgerApp(
         BottomDestination(Routes.SETTINGS, "المزيد", Icons.Rounded.Settings)
     )
     val bottomRoutes = bottomItems.map { it.route }.toSet()
+    var lastNavigationAt by remember { mutableLongStateOf(0L) }
+
+    fun safeNavigate(route: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavigationAt < 500L) return
+        lastNavigationAt = now
+        navController.navigate(route) {
+            launchSingleTop = true
+        }
+    }
+
+    if (currentRoute != null && currentRoute in bottomRoutes && currentRoute != Routes.HOME) {
+        BackHandler {
+            navController.navigate(Routes.HOME) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     GasLedgerTheme {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -164,6 +194,9 @@ fun GasLedgerApp(
                                 NavigationBarItem(
                                     selected = currentRoute == item.route,
                                     onClick = {
+                                        val now = SystemClock.elapsedRealtime()
+                                        if (now - lastNavigationAt < 500L) return@NavigationBarItem
+                                        lastNavigationAt = now
                                         navController.navigate(item.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 saveState = true
@@ -188,25 +221,58 @@ fun GasLedgerApp(
                     }
                 }
             ) { innerPadding ->
+                var horizontalDrag by remember(currentRoute) { mutableFloatStateOf(0f) }
                 NavHost(
                     navController = navController,
                     startDestination = Routes.HOME,
-                    modifier = Modifier.padding(innerPadding)
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .pointerInput(currentRoute) {
+                            if (currentRoute !in bottomRoutes) return@pointerInput
+                            detectHorizontalDragGestures(
+                                onDragStart = { horizontalDrag = 0f },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    horizontalDrag += dragAmount
+                                },
+                                onDragEnd = {
+                                    val index = bottomItems.indexOfFirst { it.route == currentRoute }
+                                    if (index >= 0 && kotlin.math.abs(horizontalDrag) > 120f) {
+                                        val target = if (horizontalDrag < 0f) {
+                                            (index + 1).coerceAtMost(bottomItems.lastIndex)
+                                        } else {
+                                            (index - 1).coerceAtLeast(0)
+                                        }
+                                        val route = bottomItems[target].route
+                                        if (route != currentRoute) {
+                                            navController.navigate(route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    }
+                                    horizontalDrag = 0f
+                                },
+                                onDragCancel = { horizontalDrag = 0f }
+                            )
+                        }
                 ) {
                     composable(Routes.HOME) {
                         HomeScreenV3(
                             vm = vm,
-                            onCustomers = { navController.navigate(Routes.CUSTOMERS) },
-                            onAddCustomer = { navController.navigate(Routes.ADD_CUSTOMER) },
+                            onCustomers = { safeNavigate(Routes.CUSTOMERS) },
+                            onAddCustomer = { safeNavigate(Routes.ADD_CUSTOMER) },
                             onSearch = { navController.navigate(Routes.search("open")) { launchSingleTop = true } },
                             onQuickDebt = { navController.navigate(Routes.search("debt")) { launchSingleTop = true } },
                             onQuickPayment = { navController.navigate(Routes.search("payment")) { launchSingleTop = true } },
-                            onCollections = { navController.navigate(Routes.COLLECTIONS) },
-                            onDailyDebts = { navController.navigate(Routes.DAILY_DEBTS) },
-                            onTopDebtors = { navController.navigate(Routes.TOP_DEBTORS) },
-                            onAreas = { navController.navigate(Routes.AREAS) },
-                            onFollowUp = { navController.navigate(Routes.FOLLOWUP) },
-                            onCustomer = { navController.navigate(Routes.customer(it)) }
+                            onCollections = { safeNavigate(Routes.COLLECTIONS) },
+                            onDailyDebts = { safeNavigate(Routes.DAILY_DEBTS) },
+                            onTopDebtors = { safeNavigate(Routes.TOP_DEBTORS) },
+                            onAreas = { safeNavigate(Routes.AREAS) },
+                            onFollowUp = { safeNavigate(Routes.FOLLOWUP) },
+                            onCustomer = { safeNavigate(Routes.customer(it)) }
                         )
                     }
                     composable(Routes.CUSTOMERS) {
