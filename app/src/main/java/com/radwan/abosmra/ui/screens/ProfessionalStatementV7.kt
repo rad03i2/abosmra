@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
 import com.radwan.abosmra.data.EntryType
+import com.radwan.abosmra.ui.components.CustomerAvatar
 import com.radwan.abosmra.ui.components.EmptyState
 import com.radwan.abosmra.ui.components.ScreenTopBar
 import com.radwan.abosmra.ui.components.SoftDivider
@@ -233,30 +234,24 @@ fun StatementScreenV7(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(13.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CustomerAvatar(
+                                customerId = customer.id,
+                                size = 50.dp
+                            )
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("دفتر دين الغاز - أبو سمرة", style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    "دفتر دين الغاز - ابو سمرة",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
                                 Text(
                                     "كشف حساب الدين • " + formatDate(snapshot.generatedAt),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
-                            Surface(
-                                shape = CircleShape,
-                                color = if (balance > 0) MaterialTheme.colorScheme.errorContainer
-                                else MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (balance > 0) Icons.Rounded.AccountBalanceWallet
-                                        else Icons.Rounded.CheckCircle,
-                                        contentDescription = null,
-                                        tint = if (balance > 0) DebtRed else PaidGreen,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
                             }
                         }
 
