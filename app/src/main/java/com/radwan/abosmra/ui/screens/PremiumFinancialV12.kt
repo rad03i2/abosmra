@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -158,7 +159,7 @@ fun AddDebtScreenV12(
                 Button(
                     onClick = ::submit,
                     enabled = canSubmit,
-                    modifier = Modifier.fillMaxWidth().padding(12.dp, 10.dp, 12.dp, 12.dp).height(58.dp),
+                    modifier = Modifier.fillMaxWidth().imePadding().padding(12.dp, 10.dp, 12.dp, 12.dp).height(58.dp),
                     shape = MaterialTheme.shapes.large
                 ) {
                     if (isSaving) {
