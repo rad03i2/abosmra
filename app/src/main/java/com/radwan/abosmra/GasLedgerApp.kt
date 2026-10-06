@@ -240,10 +240,18 @@ fun GasLedgerApp(
                                     launchSingleTop = true
                                 }
                             },
-                            onAddDebt = { navController.navigate(Routes.addDebt(id)) },
-                            onPayment = { navController.navigate(Routes.addPayment(id)) },
-                            onTransactions = { navController.navigate(Routes.transactions(id)) },
-                            onStatement = { navController.navigate(Routes.statement(id)) }
+                            onAddDebt = {
+                                navController.navigate(Routes.addDebt(id)) { launchSingleTop = true }
+                            },
+                            onPayment = {
+                                navController.navigate(Routes.addPayment(id)) { launchSingleTop = true }
+                            },
+                            onTransactions = {
+                                navController.navigate(Routes.transactions(id)) { launchSingleTop = true }
+                            },
+                            onStatement = {
+                                navController.navigate(Routes.statement(id)) { launchSingleTop = true }
+                            }
                         )
                     }
                     composable(
