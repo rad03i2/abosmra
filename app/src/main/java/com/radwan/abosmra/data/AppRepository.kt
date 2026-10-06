@@ -158,7 +158,7 @@ class AppRepository(context: Context) {
             type = EntryType.PAYMENT,
             amount = amount
         )
-        dbCall { dao.insertEntry(entry.toEntity()) }
+        dao.insertEntry(entry.toEntity())
         entriesCache.add(0, entry)
         maybeCreateAutomaticBackup()
         return entry
