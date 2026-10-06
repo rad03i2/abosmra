@@ -8,6 +8,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -80,74 +81,70 @@ private val CairoFontFamily = FontFamily(
     Font(R.font.cairo_variable, weight = FontWeight.ExtraBold)
 )
 
-private val AppTypography = Typography(
-    headlineLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 45.sp
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 37.sp
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 23.sp,
-        lineHeight = 32.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 21.sp,
-        lineHeight = 30.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 25.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 17.sp,
-        lineHeight = 28.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 24.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 20.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = CairoFontFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 19.sp
-    )
+private val TajawalFontFamily = FontFamily(
+    Font(R.font.tajawal_regular, weight = FontWeight.Light),
+    Font(R.font.tajawal_regular, weight = FontWeight.Normal),
+    Font(R.font.tajawal_medium, weight = FontWeight.Medium),
+    Font(R.font.tajawal_medium, weight = FontWeight.SemiBold),
+    Font(R.font.tajawal_bold, weight = FontWeight.Bold),
+    Font(R.font.tajawal_bold, weight = FontWeight.ExtraBold)
 )
+
+private val NotoSansArabicFontFamily = FontFamily(
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Light),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Normal),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Medium),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.SemiBold),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.Bold),
+    Font(R.font.noto_sans_arabic_variable, weight = FontWeight.ExtraBold)
+)
+
+private val NotoKufiArabicFontFamily = FontFamily(
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Light),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Normal),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Medium),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.SemiBold),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.Bold),
+    Font(R.font.noto_kufi_arabic_variable, weight = FontWeight.ExtraBold)
+)
+
+private fun fontFamilyFor(font: ArabicFontPreset): FontFamily =
+    when (font) {
+        ArabicFontPreset.CAIRO -> CairoFontFamily
+        ArabicFontPreset.TAJAWAL -> TajawalFontFamily
+        ArabicFontPreset.NOTO_SANS_ARABIC -> NotoSansArabicFontFamily
+        ArabicFontPreset.NOTO_KUFI_ARABIC -> NotoKufiArabicFontFamily
+    }
+
+private fun appTypography(settings: TypographySettings): Typography {
+    val family = fontFamilyFor(settings.font)
+    val scale = TypographySettingsStore.sanitizeScale(settings.scale)
+
+    fun style(
+        weight: FontWeight,
+        size: Float,
+        lineHeight: Float
+    ) = TextStyle(
+        fontFamily = family,
+        fontWeight = weight,
+        fontSize = (size * scale).sp,
+        lineHeight = (lineHeight * scale).sp
+    )
+
+    return Typography(
+        headlineLarge = style(FontWeight.Bold, 36f, 45f),
+        headlineMedium = style(FontWeight.Bold, 28f, 37f),
+        headlineSmall = style(FontWeight.Bold, 23f, 32f),
+        titleLarge = style(FontWeight.Bold, 21f, 30f),
+        titleMedium = style(FontWeight.SemiBold, 17f, 25f),
+        titleSmall = style(FontWeight.SemiBold, 15f, 22f),
+        bodyLarge = style(FontWeight.Normal, 17f, 28f),
+        bodyMedium = style(FontWeight.Normal, 15f, 24f),
+        bodySmall = style(FontWeight.Normal, 13f, 20f),
+        labelLarge = style(FontWeight.SemiBold, 15f, 22f),
+        labelMedium = style(FontWeight.Medium, 13f, 19f)
+    )
+}
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(9.dp),
@@ -160,11 +157,19 @@ private val AppShapes = Shapes(
 @Composable
 fun GasLedgerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    typographySettings: TypographySettings = TypographySettings(),
     content: @Composable () -> Unit
 ) {
+    val typography = remember(
+        typographySettings.font,
+        typographySettings.scale
+    ) {
+        appTypography(typographySettings)
+    }
+
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = AppTypography,
+        typography = typography,
         shapes = AppShapes,
         content = content
     )
