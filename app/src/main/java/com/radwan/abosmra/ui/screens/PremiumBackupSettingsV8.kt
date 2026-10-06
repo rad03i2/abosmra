@@ -419,6 +419,10 @@ fun SettingsScreenV10(vm: GasLedgerViewModel) {
                     "الدينار العراقي • د.ع"
                 ) { }
             }
+
+            item { SectionTitle("الأصوات والتأكيدات") }
+            item { FinancialSoundSettingsCardV28(vm) }
+
             item { SectionTitle("المتابعة الذكية") }
             item { SmartReminderSettingsCardV10(vm) }
 
