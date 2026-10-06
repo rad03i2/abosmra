@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release-candidate:
+  stable-release:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,13 +28,23 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
+      - name: Verify stable version metadata
+        shell: bash
+        run: |
+          grep -q 'versionName = "2.6.0"' app/build.gradle.kts
+          grep -q 'versionCode = 18' app/build.gradle.kts
+          if grep -q 'versionName = ".*-rc' app/build.gradle.kts; then
+            echo "Release candidate suffix is still present."
+            exit 1
+          fi
+
       - name: Run unit, Room and Compose tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Run release lint
         run: gradle :app:lintRelease --stacktrace
 
-      - name: Build optimized release APK
+      - name: Build optimized stable APK
         run: gradle :app:assembleRelease --stacktrace
 
       - name: Generate APK checksum
@@ -44,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: abosmra-qa-reports
+          name: abosmra-v2.6.0-qa-reports
           path: |
             app/build/reports/tests/testDebugUnitTest/
             app/build/test-results/testDebugUnitTest/
@@ -52,10 +62,10 @@ jobs:
             app/build/reports/lint-results-release.xml
           if-no-files-found: ignore
 
-      - name: Upload release candidate APK
+      - name: Upload stable APK
         uses: actions/upload-artifact@v4
         with:
-          name: abosmra-v2.6.0-rc1-apk
+          name: abosmra-v2.6.0-stable-apk
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/app-release.apk.sha256
