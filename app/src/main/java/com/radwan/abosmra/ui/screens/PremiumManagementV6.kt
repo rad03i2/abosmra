@@ -85,6 +85,7 @@ fun CustomerProfileScreenV6(
 ) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val security by vm.securityState.collectAsStateWithLifecycle()
     val customer = customers.firstOrNull { it.id == customerId }
     val context = LocalContext.current
 
@@ -192,7 +193,7 @@ fun CustomerProfileScreenV6(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { V6AccountHero(customer, balance) }
+            item { V6AccountHero(customer, balance, security.hideAmounts) }
 
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -234,7 +235,10 @@ fun CustomerProfileScreenV6(
                     ) {
                         V6ProfileInfo("المنطقة", customer.area.ifBlank { "غير محددة" })
                         V6ProfileInfo("الهاتف", customer.phone ?: "غير مضاف")
-                        V6ProfileInfo("الدين السابق", formatMoney(customer.openingDebt))
+                        V6ProfileInfo(
+                            "الدين السابق",
+                            if (security.hideAmounts) "•••• د.ع" else formatMoney(customer.openingDebt)
+                        )
                         if (customer.address.isNotBlank()) V6ProfileInfo("المكان", customer.address)
                         if (customer.notes.isNotBlank()) V6ProfileInfo("ملاحظات", customer.notes)
                     }
@@ -252,7 +256,11 @@ fun CustomerProfileScreenV6(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         color = MaterialTheme.colorScheme.surface
                     ) {
-                        TransactionRow(entry, modifier = Modifier.padding(horizontal = 14.dp))
+                        TransactionRow(
+                            entry,
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            hideAmounts = security.hideAmounts
+                        )
                     }
                 }
             }
@@ -680,7 +688,7 @@ private fun EditEntryDialog(
 }
 
 @Composable
-private fun V6AccountHero(customer: Customer, balance: Long) {
+private fun V6AccountHero(customer: Customer, balance: Long, hideAmounts: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -710,7 +718,7 @@ private fun V6AccountHero(customer: Customer, balance: Long) {
             }
             Text("الدين الحالي", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                formatMoney(balance),
+                if (hideAmounts) "•••• د.ع" else formatMoney(balance),
                 style = MaterialTheme.typography.headlineLarge,
                 color = if (balance > 0) DebtRed else PaidGreen
             )
