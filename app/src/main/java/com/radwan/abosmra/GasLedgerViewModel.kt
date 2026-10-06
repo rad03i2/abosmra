@@ -22,9 +22,12 @@ import com.radwan.abosmra.notifications.ReminderScheduler
 import com.radwan.abosmra.notifications.ReminderSettings
 import com.radwan.abosmra.notifications.ReminderStore
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -50,11 +53,13 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     )
     val advancedReport: StateFlow<AdvancedReportSnapshot> = _advancedReport.asStateFlow()
 
-    private val _customers = MutableStateFlow(repository.customers())
+    private val _customers = MutableStateFlow<List<Customer>>(emptyList())
     val customers: StateFlow<List<Customer>> = _customers.asStateFlow()
 
-    private val _entries = MutableStateFlow(repository.entries())
+    private val _entries = MutableStateFlow<List<LedgerEntry>>(emptyList())
     val entries: StateFlow<List<LedgerEntry>> = _entries.asStateFlow()
+
+    private val writeMutex = Mutex()
 
     // Expensive ledger calculations are indexed once after every write instead of
     // re-filtering the entire history on every card recomposition.
@@ -62,11 +67,29 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     private var entriesByCustomer: Map<String, List<LedgerEntry>> = emptyMap()
     private var lastEntryByCustomer: Map<String, LedgerEntry> = emptyMap()
     private var lastPaymentByCustomer: Map<String, LedgerEntry> = emptyMap()
+    private var todayEntriesCache: List<LedgerEntry> = emptyList()
+    private var todayDebtEntriesCache: List<LedgerEntry> = emptyList()
+    private var todayPaymentEntriesCache: List<LedgerEntry> = emptyList()
+    private var todayDebtsCache: Long = 0L
+    private var todayCollectionsCache: Long = 0L
+    private var topDebtorsCache: List<Customer> = emptyList()
 
     init {
-        rebuildIndexes()
         ReminderScheduler.apply(app, _reminderSettings.value)
-        loadAdvancedReport(ReportPeriodV11.MONTH)
+        viewModelScope.launch {
+            repository.initialize()
+            loadAdvancedReport(ReportPeriodV11.MONTH)
+            combine(
+                repository.observeCustomers(),
+                repository.observeEntries()
+            ) { customers, entries ->
+                customers to entries
+            }.collect { (customers, entries) ->
+                _customers.value = customers
+                _entries.value = entries
+                rebuildIndexes()
+            }
+        }
     }
 
     fun customer(id: String): Customer? = _customers.value.firstOrNull { it.id == id }
@@ -77,20 +100,22 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     fun entriesFor(customerId: String): List<LedgerEntry> =
         entriesByCustomer[customerId].orEmpty()
 
-    fun addCustomer(
+    suspend fun addCustomer(
         name: String,
         phone: String?,
         area: String,
         address: String,
         openingDebt: Long,
         notes: String
-    ): Customer {
+    ): Customer = writeMutex.withLock {
         val customer = repository.addCustomer(name, phone, area, address, openingDebt, notes)
-        refresh()
-        return customer
+        _customers.value = listOf(customer) + _customers.value.filterNot { it.id == customer.id }
+        rebuildIndexes()
+        loadAdvancedReport(_advancedReport.value.period)
+        customer
     }
 
-    fun updateCustomer(
+    suspend fun updateCustomer(
         customerId: String,
         name: String,
         phone: String?,
@@ -98,82 +123,114 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         address: String,
         openingDebt: Long,
         notes: String
-    ): MutationResult {
+    ): MutationResult = writeMutex.withLock {
         val result = repository.updateCustomer(
             customerId, name, phone, area, address, openingDebt, notes
         )
-        if (result.success) refresh()
-        return result
+        if (result.success) {
+            val current = _customers.value.firstOrNull { it.id == customerId }
+            if (current != null) {
+                val updated = current.copy(
+                    name = name.trim(),
+                    phone = phone?.trim()?.takeIf { it.isNotBlank() },
+                    area = area.trim(),
+                    address = address.trim(),
+                    openingDebt = openingDebt,
+                    notes = notes.trim()
+                )
+                _customers.value = _customers.value.map {
+                    if (it.id == customerId) updated else it
+                }
+                rebuildIndexes()
+            }
+            loadAdvancedReport(_advancedReport.value.period)
+        }
+        result
     }
 
-    fun deleteCustomer(customerId: String): MutationResult {
+    suspend fun deleteCustomer(customerId: String): MutationResult = writeMutex.withLock {
         val result = repository.deleteCustomer(customerId)
-        if (result.success) refresh()
-        return result
+        if (result.success) {
+            _customers.value = _customers.value.filterNot { it.id == customerId }
+            rebuildIndexes()
+            loadAdvancedReport(_advancedReport.value.period)
+        }
+        result
     }
 
-    fun addDebt(
+    suspend fun addDebt(
         customerId: String,
         amount: Long,
         bottles: Int?,
         bottlePrice: Long?
-    ) {
-        repository.addDebt(customerId, amount, bottles, bottlePrice, "قناني غاز")
-        refresh()
+    ) = writeMutex.withLock {
+        val entry = repository.addDebt(customerId, amount, bottles, bottlePrice, "قناني غاز")
+        _entries.value = listOf(entry) + _entries.value.filterNot { it.id == entry.id }
+        rebuildIndexes()
+        loadAdvancedReport(_advancedReport.value.period)
     }
 
-    fun addPayment(customerId: String, amount: Long): Boolean {
-        val customer = customer(customerId) ?: return false
-        if (amount <= 0 || amount > balance(customer)) return false
-        repository.addPayment(customerId, amount)
-        refresh()
-        return true
+    suspend fun addPayment(customerId: String, amount: Long): Boolean = writeMutex.withLock {
+        val customer = customer(customerId) ?: return@withLock false
+        if (amount <= 0 || amount > balance(customer)) return@withLock false
+        val entry = repository.addPayment(customerId, amount)
+        _entries.value = listOf(entry) + _entries.value.filterNot { it.id == entry.id }
+        rebuildIndexes()
+        loadAdvancedReport(_advancedReport.value.period)
+        true
     }
 
-    fun updateEntry(
+    suspend fun updateEntry(
         entryId: String,
         amount: Long,
         bottles: Int?,
         bottlePrice: Long?,
         details: String
-    ): MutationResult {
+    ): MutationResult = writeMutex.withLock {
         val result = repository.updateEntry(entryId, amount, bottles, bottlePrice, details)
-        if (result.success) refresh()
-        return result
+        if (result.success) {
+            _entries.value = _entries.value.map { entry ->
+                if (entry.id == entryId) {
+                    entry.copy(
+                        amount = amount,
+                        bottles = if (entry.type == EntryType.DEBT) bottles?.takeIf { it > 0 } else null,
+                        bottlePrice = if (entry.type == EntryType.DEBT) bottlePrice?.takeIf { it > 0L } else null,
+                        details = if (entry.type == EntryType.DEBT) details.trim() else entry.details
+                    )
+                } else entry
+            }
+            rebuildIndexes()
+            loadAdvancedReport(_advancedReport.value.period)
+        }
+        result
     }
 
-    fun deleteEntry(entryId: String): MutationResult {
+    suspend fun deleteEntry(entryId: String): MutationResult = writeMutex.withLock {
         val result = repository.deleteEntry(entryId)
-        if (result.success) refresh()
-        return result
+        if (result.success) {
+            _entries.value = _entries.value.filterNot { it.id == entryId }
+            rebuildIndexes()
+            loadAdvancedReport(_advancedReport.value.period)
+        }
+        result
     }
 
     fun totalDebt(): Long = balanceByCustomer.values.sum()
 
     fun indebtedCustomersCount(): Int = balanceByCustomer.values.count { it > 0L }
 
-    fun todayEntries(type: EntryType? = null): List<LedgerEntry> {
-        val today = LocalDate.now()
-        return _entries.value.asSequence()
-            .filter { entry ->
-                val date = Instant.ofEpochMilli(entry.createdAt)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate()
-                date == today && (type == null || entry.type == type)
-            }
-            .sortedByDescending { it.createdAt }
-            .toList()
-    }
+    fun todayEntries(type: EntryType? = null): List<LedgerEntry> =
+        when (type) {
+            EntryType.DEBT -> todayDebtEntriesCache
+            EntryType.PAYMENT -> todayPaymentEntriesCache
+            null -> todayEntriesCache
+        }
 
-    fun todayCollections(): Long = todayEntries(EntryType.PAYMENT).sumOf { it.amount }
+    fun todayCollections(): Long = todayCollectionsCache
 
-    fun todayDebts(): Long = todayEntries(EntryType.DEBT).sumOf { it.amount }
+    fun todayDebts(): Long = todayDebtsCache
 
-    fun topDebtors(): List<Customer> =
-        _customers.value.asSequence()
-            .filter { balanceByCustomer[it.id].orZero() > 0L }
-            .sortedByDescending { balanceByCustomer[it.id].orZero() }
-            .toList()
+    fun topDebtors(): List<Customer> = topDebtorsCache
 
     fun lastEntryFor(customerId: String): LedgerEntry? = lastEntryByCustomer[customerId]
 
@@ -186,9 +243,11 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     fun previewBackup(raw: String): BackupPreview =
         repository.previewBackup(raw)
 
-    fun restoreBackup(raw: String): BackupRestoreResult {
-        val result = repository.restoreBackup(raw)
-        if (result.success) refresh()
+    suspend fun restoreBackup(raw: String): BackupRestoreResult {
+        val result = writeMutex.withLock { repository.restoreBackup(raw) }
+        if (result.success) {
+            loadAdvancedReport(_advancedReport.value.period)
+        }
         return result
     }
 
@@ -201,7 +260,7 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
     fun autoBackupInterval(): AutoBackupInterval =
         repository.autoBackupInterval()
 
-    fun setAutoBackupInterval(interval: AutoBackupInterval) {
+    suspend fun setAutoBackupInterval(interval: AutoBackupInterval) {
         repository.setAutoBackupInterval(interval)
     }
 
@@ -327,15 +386,10 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun resetDemoData() {
-        repository.resetDemoData()
-        refresh()
-    }
-
-    private fun refresh() {
-        _customers.value = repository.customers()
-        _entries.value = repository.entries()
-        rebuildIndexes()
+    suspend fun resetDemoData() {
+        writeMutex.withLock {
+            repository.resetDemoData()
+        }
         loadAdvancedReport(_advancedReport.value.period)
     }
 
@@ -358,6 +412,25 @@ class GasLedgerViewModel(application: Application) : AndroidViewModel(applicatio
             }
             customer.id to (customer.openingDebt + movement).coerceAtLeast(0L)
         }
+
+        val today = LocalDate.now()
+        todayEntriesCache = _entries.value.asSequence()
+            .filter { entry ->
+                Instant.ofEpochMilli(entry.createdAt)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate() == today
+            }
+            .sortedByDescending { it.createdAt }
+            .toList()
+        todayDebtEntriesCache = todayEntriesCache.filter { it.type == EntryType.DEBT }
+        todayPaymentEntriesCache = todayEntriesCache.filter { it.type == EntryType.PAYMENT }
+        todayDebtsCache = todayDebtEntriesCache.sumOf { it.amount }
+        todayCollectionsCache = todayPaymentEntriesCache.sumOf { it.amount }
+
+        topDebtorsCache = _customers.value.asSequence()
+            .filter { balanceByCustomer[it.id].orZero() > 0L }
+            .sortedByDescending { balanceByCustomer[it.id].orZero() }
+            .toList()
     }
 
     private fun Long?.orZero(): Long = this ?: 0L
