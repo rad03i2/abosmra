@@ -5,7 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +31,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocalShipping
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Wallet
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -39,8 +41,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,11 +54,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.radwan.abosmra.GasLedgerViewModel
@@ -736,55 +741,102 @@ private fun V12SuccessDialog(
     message: String,
     onDone: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = {},
-        icon = {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
+    Dialog(onDismissRequest = {}) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            shadowElevation = 12.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Rounded.Check,
-                    null,
-                    tint = PaidGreen,
-                    modifier = Modifier.padding(10.dp)
+                V28AnimatedSuccessMark()
+
+                Text(
+                    title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
-            }
-        },
-        title = { Text(title, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(message)
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer
+
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    "تم حفظ العملية بنجاح",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = PaidGreen,
+                    textAlign = TextAlign.Center
+                )
+
+                Button(
+                    onClick = onDone,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = MaterialTheme.shapes.large
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Rounded.Check,
-                            contentDescription = null,
-                            tint = PaidGreen,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            "تم حفظ العملية بنجاح",
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                            color = PaidGreen,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
+                    Text(
+                        "موافق",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDone) {
-                Text("العودة للحساب")
-            }
         }
-    )
+    }
+}
+
+@Composable
+private fun V28AnimatedSuccessMark() {
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 1_000)
+        )
+    }
+
+    Box(
+        modifier = Modifier.size(96.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        val green = PaidGreen
+        val track = MaterialTheme.colorScheme.primaryContainer
+
+        Canvas(modifier = Modifier.size(88.dp)) {
+            drawCircle(
+                color = track,
+                radius = size.minDimension / 2f
+            )
+            drawArc(
+                color = green,
+                startAngle = -90f,
+                sweepAngle = 360f * progress.value,
+                useCenter = false,
+                style = Stroke(
+                    width = 7.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            )
+        }
+
+        if (progress.value >= 0.72f) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = PaidGreen,
+                modifier = Modifier.size(46.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -807,7 +859,7 @@ private fun rememberFinancialFeedbackHandler(
     }
 
     return { receipt ->
-        vm.playFinancialSuccessSound(receipt.kind)
+        vm.playFinancialSuccessSound()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
