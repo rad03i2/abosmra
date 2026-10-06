@@ -21,6 +21,8 @@ import com.radwan.abosmra.customer.CustomerPhotoStore
 import com.radwan.abosmra.data.Customer
 import com.radwan.abosmra.data.EntryType
 import com.radwan.abosmra.data.LedgerEntry
+import com.radwan.abosmra.ui.theme.AppFontPreset
+import com.radwan.abosmra.ui.theme.TypographyPreferences
 import java.io.File
 import java.io.FileOutputStream
 
@@ -100,8 +102,15 @@ object StatementDocumentRenderer {
             Bitmap.Config.ARGB_8888
         )
         val canvas = Canvas(bitmap)
+        val selectedFont = TypographyPreferences(context).state().font
+        val fontResource = when (selectedFont) {
+            AppFontPreset.CAIRO -> R.font.cairo_variable
+            AppFontPreset.TAJAWAL -> R.font.tajawal_regular
+            AppFontPreset.NOTO_KUFI_ARABIC -> R.font.noto_kufi_arabic_variable
+            AppFontPreset.NOTO_SANS_ARABIC -> R.font.noto_sans_arabic_variable
+        }
         val baseTypeface = runCatching {
-            ResourcesCompat.getFont(context, R.font.cairo_variable)
+            ResourcesCompat.getFont(context, fontResource)
         }.getOrNull() ?: Typeface.DEFAULT
 
         val regular = Typeface.create(baseTypeface, Typeface.NORMAL)
