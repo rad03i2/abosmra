@@ -751,8 +751,34 @@ private fun V12SuccessDialog(
                 )
             }
         },
-        title = { Text(title) },
-        text = { Text(message) },
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(message)
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = PaidGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            "تم حفظ العملية بنجاح",
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            color = PaidGreen,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+        },
         confirmButton = {
             TextButton(onClick = onDone) {
                 Text("العودة للحساب")
