@@ -67,7 +67,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun SettingsScreenV8(vm: GasLedgerViewModel) {
+fun SettingsScreenV9(vm: GasLedgerViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val customers by vm.customers.collectAsStateWithLifecycle()
@@ -408,15 +408,8 @@ fun SettingsScreenV8(vm: GasLedgerViewModel) {
                     "الدينار العراقي • د.ع"
                 ) { }
             }
-            item {
-                V8SettingsRow(
-                    Icons.Rounded.Lock,
-                    "قفل التطبيق",
-                    "سيتم تفعيله في المرحلة 9"
-                ) {
-                    message = "PIN والبصمة ضمن المرحلة 9."
-                }
-            }
+            item { SectionTitle("الخصوصية والأمان") }
+            item { SecuritySettingsCardV9(vm) }
 
             item { SectionTitle("حول") }
 
@@ -439,7 +432,7 @@ fun SettingsScreenV8(vm: GasLedgerViewModel) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp)) {
                             Text("دفتر الغاز", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "الإصدار 1.8.0 • Backup + Restore",
+                                "الإصدار 1.9.0 • الخصوصية والأمان",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
